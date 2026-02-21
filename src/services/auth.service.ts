@@ -33,6 +33,16 @@ const authService = {
     next();
   },
 
+  /** Verify a JWT and return the userId, or null if invalid. */
+  verifyToken(token: string): string | null {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
+      return decoded.userId;
+    } catch {
+      return null;
+    }
+  },
+
   /** Set the JWT as an HttpOnly cookie on the response. */
   setTokenCookie(res: Response, token: string): void {
     res.cookie('token', token, COOKIE_OPTIONS);

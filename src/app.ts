@@ -10,6 +10,8 @@ import { GraphQLFormattedError } from 'graphql';
 import './config/db';
 import { typeDefs, resolvers } from './graphql/schema';
 import authService from './services/auth.service';
+import oauthRoutes from './routes/oauth.routes';
+import { initScheduler } from './jobs/scheduler';
 import { logger } from './config/logger';
 import { AppError } from './errors/AppError';
 import { GLOBAL_CONSTANTS } from './config/constants/globalConstants';
@@ -48,6 +50,14 @@ export async function createApp() {
   // Structured JSON request logging (replaces morgan)
   app.use(pinoHttp({ logger }));
 
+  // OAuth REST routes (before Apollo middleware)
+  app.use(cookieParser());
+  app.use(
+    '/oauth',
+    cors({ origin: process.env.CLIENT_URL || 'http://localhost:4200', credentials: true }),
+    oauthRoutes,
+  );
+
   app.use(
     '/graphql',
     cors({ origin: process.env.CLIENT_URL || 'http://localhost:4200', credentials: true }),
@@ -58,6 +68,9 @@ export async function createApp() {
       context: async ({ req, res }) => ({ userId: req.userId, token: req.token, res }),
     }),
   );
+
+  // Start background cron jobs (publish scheduled posts, refresh tokens)
+  initScheduler();
 
   return app;
 }

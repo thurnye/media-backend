@@ -17,6 +17,9 @@ export const GLOBAL_CONSTANTS = {
             POST_NOT_FOUND:  'Post not found',
             MISSING_TITLE:   'Post title is required',
             NOT_OWNER:       'You can only modify your own posts',
+            ALREADY_PENDING: 'Post is already pending approval',
+            NOT_DRAFT:       'Only draft posts can be submitted for approval',
+            NOT_PENDING:     'Post is not pending approval',
         },
         WORKSPACE: {
             NOT_FOUND:             'Workspace not found',
@@ -27,7 +30,10 @@ export const GLOBAL_CONSTANTS = {
         },
         PLATFORM_ACCOUNT: {
             NOT_FOUND:         'Platform account not found',
-            ALREADY_CONNECTED: 'This platform account is already connected to this workspace',
+            ALREADY_CONNECTED: 'This platform account is already connected to your profile',
+            ALREADY_LINKED:    'This account is already linked to the workspace',
+            NOT_LINKED:        'This account is not linked to this workspace',
+            NOT_OWNER:         'You do not own this platform account',
         },
         PLATFORM_POST: {
             NOT_FOUND: 'Platform post not found',

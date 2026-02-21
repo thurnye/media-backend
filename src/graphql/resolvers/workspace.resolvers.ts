@@ -1,10 +1,33 @@
 import { IContext } from '../../interfaces/auth.interface';
 import { WorkspaceRole } from '../../config/enums/workspace.enums';
-import { WorkspacePlan } from '../../interfaces/workspace.interface';
+import { IWorkspace, WorkspacePlan } from '../../interfaces/workspace.interface';
 import workspaceService from '../../services/workspace.service';
+import userRepository from '../../repositories/user.repository';
 import { requireAuth } from '../middleware/auth.middleware';
 
 export const workspaceResolvers = {
+  Workspace: {
+    members: async (parent: IWorkspace) => {
+      const raw = parent.members ?? [];
+      if (raw.length === 0) return [];
+
+      const userIds = raw.map(m => m.userId);
+      const users = await userRepository.findByIds(userIds);
+      const userMap = new Map(users.map(u => [(u as any)._id.toString(), u]));
+
+      return raw.map(m => {
+        const user = userMap.get(m.userId);
+        return {
+          userId:    m.userId,
+          role:      m.role,
+          joinedAt:  m.joinedAt,
+          firstName: user?.firstName ?? null,
+          lastName:  user?.lastName ?? null,
+          avatarUrl: user?.avatarUrl ?? null,
+        };
+      });
+    },
+  },
   Query: {
     workspaces: async (_: unknown, __: unknown, ctx: IContext) => {
       const userId = await requireAuth(ctx);

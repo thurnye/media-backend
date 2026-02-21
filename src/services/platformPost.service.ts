@@ -6,7 +6,7 @@ import { Permission } from '../config/enums/permission.enums';
 import { requirePermission, requireMembership } from '../utils/rbac';
 import { AppError } from '../errors/AppError';
 import { GLOBAL_CONSTANTS } from '../config/constants/globalConstants';
-import { CreatePlatformPostSchema, UpdatePlatformPostSchema, validate } from '../validation/schemas';
+import { CreatePlatformPostSchema, UpdatePlatformPostSchema, CreatePlatformPostBatchSchema, validate } from '../validation/schemas';
 
 const { POST, PLATFORM_POST } = GLOBAL_CONSTANTS.ERROR_MESSAGE;
 
@@ -113,6 +113,103 @@ const platformPostService = {
     }
 
     const updated = await platformPostRepository.update(input.id, data);
+    return updated!;
+  },
+
+  /** Batch create platform posts for multiple accounts at once. */
+  createPlatformPostsBatch: async (
+    input: {
+      postId: string;
+      entries: Array<{
+        platform: string;
+        accountId: string;
+        caption: string;
+        hashtags?: string[];
+        firstComment?: string;
+      }>;
+      scheduledAt?: string;
+      timezone?: string;
+    },
+    userId: string,
+  ): Promise<IPlatformPost[]> => {
+    const { error } = validate(CreatePlatformPostBatchSchema, input);
+    if (error) throw new AppError('VALIDATION_ERROR', error);
+
+    const workspaceId = await getWorkspaceIdForPost(input.postId);
+    await requirePermission(workspaceId, userId, Permission.PUBLISH_POST);
+
+    const results: IPlatformPost[] = [];
+    for (const entry of input.entries) {
+      const data: ICreatePlatformPostData = {
+        postId:    input.postId,
+        platform:  entry.platform as PlatformType,
+        accountId: entry.accountId,
+        content: {
+          caption:      entry.caption,
+          hashtags:     entry.hashtags,
+          firstComment: entry.firstComment,
+          media:        [],
+        },
+        publishing: {
+          status:      input.scheduledAt ? PublishingStatus.SCHEDULED : PublishingStatus.DRAFT,
+          scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
+          timezone:    input.timezone,
+        },
+        isActive: true,
+      };
+      const created = await platformPostRepository.create(data);
+      results.push(created);
+    }
+
+    // Link platform post IDs to the parent post
+    const postIds = results.map(r => r._id!);
+    await postRepository.update(input.postId, {
+      platformPostIds: postIds,
+    } as any);
+
+    return results;
+  },
+
+  /** Publish a platform post immediately using the mock publisher. Internal use. */
+  publishNow: async (platformPostId: string): Promise<IPlatformPost> => {
+    const platformPost = await platformPostRepository.findById(platformPostId);
+    if (!platformPost) throw new AppError('NOT_FOUND', PLATFORM_POST.NOT_FOUND);
+
+    // Mark as publishing
+    await platformPostRepository.update(platformPostId, {
+      publishing: { ...platformPost.publishing, status: PublishingStatus.PUBLISHING },
+    });
+
+    // Get account with decrypted tokens
+    const platformAccountService = (await import('./platformAccount.service')).default;
+    const account = await platformAccountService.refreshTokenIfNeeded(platformPost.accountId);
+
+    // Publish via mock publisher
+    const mockPublisher = (await import('./publishers/mock.publisher')).default;
+    const result = await mockPublisher.publish(account, platformPost.content);
+
+    if (result.success) {
+      const updated = await platformPostRepository.update(platformPostId, {
+        publishing: {
+          ...platformPost.publishing,
+          status: PublishingStatus.PUBLISHED,
+          publishedAt: new Date(),
+          platformPostId: result.platformPostId,
+        },
+      });
+      return updated!;
+    }
+
+    // Failed
+    const updated = await platformPostRepository.update(platformPostId, {
+      publishing: { ...platformPost.publishing, status: PublishingStatus.FAILED },
+      deliveryTracking: {
+        attempts: (platformPost.deliveryTracking?.attempts ?? 0) + 1,
+        lastAttemptAt: new Date(),
+        success: false,
+        failureReason: result.error,
+      },
+    } as any);
     return updated!;
   },
 

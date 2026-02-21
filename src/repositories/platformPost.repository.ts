@@ -14,6 +14,13 @@ const platformPostRepository = {
   update: (id: string, data: IUpdatePlatformPostData): Promise<IPlatformPost | null> =>
     PlatformPost.findByIdAndUpdate(id, { $set: data }, { new: true }),
 
+  findScheduledReady: (before: Date): Promise<IPlatformPost[]> =>
+    PlatformPost.find({
+      isActive: true,
+      'publishing.status': 'scheduled',
+      'publishing.scheduledAt': { $lte: before },
+    }),
+
   softDelete: (id: string): Promise<IPlatformPost | null> =>
     PlatformPost.findByIdAndUpdate(
       id,

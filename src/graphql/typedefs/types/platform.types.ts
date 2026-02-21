@@ -3,7 +3,8 @@ import { gql } from 'graphql-tag';
 export const platformTypes = gql`
   type PlatformAccount {
     id: ID
-    workspaceId: ID
+    userId: ID
+    workspaceIds: [ID]
     platform: String
     accountId: String
     displayName: String

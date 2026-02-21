@@ -2,10 +2,13 @@ export enum PostStatus {
   DRAFT = "draft",
   PENDING_APPROVAL = "pending_approval",
   APPROVED = "approved",
+  REJECTED = "rejected",
   SCHEDULED = "scheduled",
+  PUBLISHING = "publishing",
   PARTIALLY_PUBLISHED = "partially_published",
   PUBLISHED = "published",
   FAILED = "failed",
+  CANCELLED = "cancelled",
   ARCHIVED = "archived",
 }
 

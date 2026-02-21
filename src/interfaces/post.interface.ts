@@ -50,6 +50,7 @@ export interface IPost {
 
   approvalWorkflow?: IApprovalWorkflow;
 
+  repostCount: number;
   platformPostIds: string[];
 
   isActive: boolean;
@@ -64,4 +65,6 @@ export interface ICreatePostData extends Omit<
   '_id' | 'status' | 'platformPostIds' | 'createdAt' | 'updatedAt' | 'deletedAt'
 > {}
 
-export interface IUpdatePostData extends Partial<ICreatePostData> {}
+export interface IUpdatePostData extends Partial<ICreatePostData> {
+  status?: PostStatus;
+}

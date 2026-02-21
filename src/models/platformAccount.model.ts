@@ -7,7 +7,8 @@ import { PlatformType } from '../config/enums/platform.enums';
 
 const PlatformAccountSchema = new Schema<IPlatformAccount>(
   {
-    workspaceId: { type: String, required: true, index: true },
+    userId:       { type: String, required: true, index: true },
+    workspaceIds: { type: [String], default: [], index: true },
 
     platform: { type: String, enum: Object.values(PlatformType), required: true },
     accountId: { type: String, required: true, index: true },
@@ -16,6 +17,7 @@ const PlatformAccountSchema = new Schema<IPlatformAccount>(
 
     accessToken: { type: String, required: true },
     refreshToken: { type: String },
+    tokenExpiresAt: { type: Date },
 
     status: {
       type: String,
@@ -30,7 +32,7 @@ const PlatformAccountSchema = new Schema<IPlatformAccount>(
   { timestamps: true }
 );
 
-// Compound index for workspace + platform lookup
-PlatformAccountSchema.index({ workspaceId: 1, platform: 1, accountId: 1 });
+// One user cannot connect the same social account twice
+PlatformAccountSchema.index({ userId: 1, platform: 1, accountId: 1 }, { unique: true });
 
 export default mongoose.model('PlatformAccount', PlatformAccountSchema);

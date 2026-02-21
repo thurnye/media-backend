@@ -24,5 +24,16 @@ export const postMutations = gql`
     ): Post
 
     deletePost(id: ID!): Post
+
+    submitForApproval(postId: ID!): Post
+    approvePost(postId: ID!): Post
+    rejectPost(postId: ID!, reason: String!): Post
+
+    updateRecycleSettings(
+      postId:       ID!
+      enabled:      Boolean!
+      intervalDays: Int!
+      maxRepeats:   Int!
+    ): Post
   }
 `;

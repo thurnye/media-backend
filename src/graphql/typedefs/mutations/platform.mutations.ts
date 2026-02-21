@@ -21,6 +21,16 @@ export const platformMutations = gql`
       status:            String
     ): PlatformAccount
 
+    linkPlatformAccount(
+      accountId:   ID!
+      workspaceId: ID!
+    ): PlatformAccount
+
+    unlinkPlatformAccount(
+      accountId:   ID!
+      workspaceId: ID!
+    ): PlatformAccount
+
     disconnectPlatformAccount(id: ID!): PlatformAccount
 
     createPlatformPost(
@@ -43,5 +53,20 @@ export const platformMutations = gql`
     ): PlatformPost
 
     deletePlatformPost(id: ID!): PlatformPost
+
+    createPlatformPostsBatch(
+      postId:      ID!
+      entries:     [PlatformPostEntryInput!]!
+      scheduledAt: String
+      timezone:    String
+    ): [PlatformPost]
+  }
+
+  input PlatformPostEntryInput {
+    platform:     String!
+    accountId:    String!
+    caption:      String!
+    hashtags:     [String]
+    firstComment: String
   }
 `;

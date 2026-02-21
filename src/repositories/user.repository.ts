@@ -17,6 +17,9 @@ const userRepository = {
   findByEmail: (email: string): Promise<IUser | null> =>
     User.findOne({ email }),
 
+  findByIds: (ids: string[]): Promise<IUser[]> =>
+    User.find({ _id: { $in: ids } }),
+
   create: (data: ICreateUserData): Promise<IUser> =>
     User.create(data),
 

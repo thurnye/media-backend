@@ -41,6 +41,17 @@ class PostRepository {
     );
   }
 
+  findEvergreenReady(before: Date): Promise<IPost[]> {
+    return Post.find({
+      isActive: true,
+      deletedAt: null,
+      isEvergreen: true,
+      'recycleSettings.enabled': true,
+      'recycleSettings.nextRecycleAt': { $lte: before },
+      $expr: { $lt: ['$repostCount', '$recycleSettings.maxRepeats'] },
+    });
+  }
+
   delete(id: string): Promise<IPost | null> {
     return Post.findByIdAndUpdate(
       id,

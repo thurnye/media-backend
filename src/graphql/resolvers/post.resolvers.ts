@@ -32,5 +32,25 @@ export const postResolvers = {
       const userId = await requireAuth(ctx);
       return postService.deletePost(id, userId);
     },
+    submitForApproval: async (_: unknown, { postId }: { postId: string }, ctx: IContext) => {
+      const userId = await requireAuth(ctx);
+      return postService.submitForApproval(postId, userId);
+    },
+    approvePost: async (_: unknown, { postId }: { postId: string }, ctx: IContext) => {
+      const userId = await requireAuth(ctx);
+      return postService.approvePost(postId, userId);
+    },
+    rejectPost: async (_: unknown, { postId, reason }: { postId: string; reason: string }, ctx: IContext) => {
+      const userId = await requireAuth(ctx);
+      return postService.rejectPost(postId, reason, userId);
+    },
+    updateRecycleSettings: async (
+      _: unknown,
+      { postId, ...settings }: { postId: string; enabled: boolean; intervalDays: number; maxRepeats: number },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return postService.updateRecycleSettings(postId, settings, userId);
+    },
   },
 };

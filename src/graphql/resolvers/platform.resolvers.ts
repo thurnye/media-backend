@@ -17,6 +17,10 @@ export const platformResolvers = {
       const userId = await requireAuth(ctx);
       return platformAccountService.getPlatformAccount(id, userId);
     },
+    myPlatformAccounts: async (_: unknown, __: unknown, ctx: IContext) => {
+      const userId = await requireAuth(ctx);
+      return platformAccountService.getUserAccounts(userId);
+    },
     platformPosts: async (
       _: unknown,
       { postId }: { postId: string },
@@ -37,7 +41,36 @@ export const platformResolvers = {
       ctx: IContext,
     ) => {
       const userId = await requireAuth(ctx);
-      return platformAccountService.connectPlatformAccount(args as any, userId);
+      // Map flat GQL args into the new ICreatePlatformAccountData shape
+      return platformAccountService.connectPlatformAccount(
+        {
+          userId,
+          workspaceIds: [args.workspaceId],
+          platform: args.platform as any,
+          accountId: args.accountId,
+          displayName: args.displayName,
+          accessToken: args.accessToken,
+          refreshToken: args.refreshToken,
+          profilePictureUrl: args.profilePictureUrl,
+        },
+        userId,
+      );
+    },
+    linkPlatformAccount: async (
+      _: unknown,
+      { accountId, workspaceId }: { accountId: string; workspaceId: string },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return platformAccountService.linkToWorkspace(accountId, workspaceId, userId);
+    },
+    unlinkPlatformAccount: async (
+      _: unknown,
+      { accountId, workspaceId }: { accountId: string; workspaceId: string },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return platformAccountService.unlinkFromWorkspace(accountId, workspaceId, userId);
     },
     updatePlatformAccount: async (
       _: unknown,
@@ -70,6 +103,19 @@ export const platformResolvers = {
     deletePlatformPost: async (_: unknown, { id }: { id: string }, ctx: IContext) => {
       const userId = await requireAuth(ctx);
       return platformPostService.deletePlatformPost(id, userId);
+    },
+    createPlatformPostsBatch: async (
+      _: unknown,
+      args: {
+        postId: string;
+        entries: Array<{ platform: string; accountId: string; caption: string; hashtags?: string[]; firstComment?: string }>;
+        scheduledAt?: string;
+        timezone?: string;
+      },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return platformPostService.createPlatformPostsBatch(args, userId);
     },
   },
 };

@@ -43,7 +43,7 @@ export const UpdatePostSchema = z
     category:    z.string().max(100).optional(),
     tags:        z.array(z.string()).optional(),
     priority:    z.enum(['low', 'medium', 'high']).optional(),
-    status:      z.enum(['draft', 'pending_approval', 'approved', 'scheduled', 'partially_published', 'published', 'failed', 'archived']).optional(),
+    status:      z.enum(['draft', 'pending_approval', 'approved', 'rejected', 'scheduled', 'publishing', 'partially_published', 'published', 'failed', 'cancelled', 'archived']).optional(),
     isEvergreen: z.boolean().optional(),
   })
   .refine(data => Object.keys(data).length > 0, { message: 'No fields provided to update' });
@@ -81,13 +81,24 @@ export const UpdateWorkspaceSchema = z
 // ─── PlatformAccount schemas ──────────────────────────────────────────────────
 
 export const ConnectPlatformAccountSchema = z.object({
-  workspaceId:       z.string().min(1, { message: 'Workspace ID is required' }),
+  userId:            z.string().min(1, { message: 'User ID is required' }),
+  workspaceIds:      z.array(z.string().min(1)).min(1, { message: 'At least one workspace ID is required' }),
   platform:          z.enum(['instagram', 'facebook', 'twitter', 'linkedin', 'tiktok', 'youtube']),
   accountId:         z.string().min(1, { message: 'Account ID is required' }),
   displayName:       z.string().min(1, { message: 'Display name is required' }),
   accessToken:       z.string().min(1, { message: 'Access token is required' }),
   refreshToken:      z.string().optional(),
   profilePictureUrl: z.string().optional(),
+});
+
+export const LinkPlatformAccountSchema = z.object({
+  accountId:   z.string().min(1, { message: 'Platform account ID is required' }),
+  workspaceId: z.string().min(1, { message: 'Workspace ID is required' }),
+});
+
+export const UnlinkPlatformAccountSchema = z.object({
+  accountId:   z.string().min(1, { message: 'Platform account ID is required' }),
+  workspaceId: z.string().min(1, { message: 'Workspace ID is required' }),
 });
 
 // ─── PlatformPost schemas ─────────────────────────────────────────────────────
@@ -112,6 +123,27 @@ export const UpdatePlatformPostSchema = z
     status:      z.enum(['draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled']).optional(),
   })
   .refine(data => Object.keys(data).length > 1, { message: 'No fields provided to update' });
+
+// ─── Approval schemas ────────────────────────────────────────────────────────
+
+export const RejectPostSchema = z.object({
+  reason: z.string().min(1, { message: 'Rejection reason is required' }).max(1000),
+});
+
+// ─── Batch PlatformPost schema ──────────────────────────────────────────────
+
+export const CreatePlatformPostBatchSchema = z.object({
+  postId:      z.string().min(1, { message: 'Post ID is required' }),
+  entries:     z.array(z.object({
+    platform:     z.enum(['instagram', 'facebook', 'twitter', 'linkedin', 'tiktok', 'youtube']),
+    accountId:    z.string().min(1),
+    caption:      z.string().min(1).max(5000),
+    hashtags:     z.array(z.string()).optional(),
+    firstComment: z.string().optional(),
+  })).min(1, { message: 'At least one platform entry is required' }),
+  scheduledAt: z.string().optional(),
+  timezone:    z.string().optional(),
+});
 
 // ─── Helper ───────────────────────────────────────────────────────────────────
 
