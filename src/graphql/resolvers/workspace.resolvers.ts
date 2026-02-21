@@ -17,10 +17,11 @@ export const workspaceResolvers = {
 
       return raw.map(m => {
         const user = userMap.get(m.userId);
+        const joinedAt = m.joinedAt instanceof Date ? m.joinedAt.toISOString() : m.joinedAt;
         return {
           userId:    m.userId,
           role:      m.role,
-          joinedAt:  m.joinedAt,
+          joinedAt,
           firstName: user?.firstName ?? null,
           lastName:  user?.lastName ?? null,
           avatarUrl: user?.avatarUrl ?? null,
