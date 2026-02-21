@@ -1,0 +1,47 @@
+import { gql } from 'graphql-tag';
+
+export const platformMutations = gql`
+  extend type Mutation {
+    connectPlatformAccount(
+      workspaceId:       ID!
+      platform:          String!
+      accountId:         String!
+      displayName:       String!
+      accessToken:       String!
+      refreshToken:      String
+      profilePictureUrl: String
+    ): PlatformAccount
+
+    updatePlatformAccount(
+      id:                ID!
+      displayName:       String
+      accessToken:       String
+      refreshToken:      String
+      profilePictureUrl: String
+      status:            String
+    ): PlatformAccount
+
+    disconnectPlatformAccount(id: ID!): PlatformAccount
+
+    createPlatformPost(
+      postId:       ID!
+      platform:     String!
+      accountId:    String!
+      caption:      String!
+      hashtags:     [String]
+      firstComment: String
+      scheduledAt:  String
+      timezone:     String
+    ): PlatformPost
+
+    updatePlatformPost(
+      id:          ID!
+      caption:     String
+      hashtags:    [String]
+      scheduledAt: String
+      status:      String
+    ): PlatformPost
+
+    deletePlatformPost(id: ID!): PlatformPost
+  }
+`;
