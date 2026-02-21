@@ -2,6 +2,7 @@ import { IContext } from '../../interfaces/auth.interface';
 import { WorkspaceRole } from '../../config/enums/workspace.enums';
 import { IWorkspace, WorkspacePlan } from '../../interfaces/workspace.interface';
 import workspaceService from '../../services/workspace.service';
+import workspaceInvitationService from '../../services/workspaceInvitation.service';
 import userRepository from '../../repositories/user.repository';
 import { requireAuth } from '../middleware/auth.middleware';
 
@@ -37,6 +38,22 @@ export const workspaceResolvers = {
     workspace: async (_: unknown, { id }: { id: string }, ctx: IContext) => {
       const userId = await requireAuth(ctx);
       return workspaceService.getWorkspace(id, userId);
+    },
+    suggestMembers: async (
+      _: unknown,
+      { workspaceId, query }: { workspaceId: string; query: string },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return workspaceService.suggestMembers(workspaceId, query, userId);
+    },
+    workspaceInvitations: async (
+      _: unknown,
+      { workspaceId }: { workspaceId: string },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return workspaceInvitationService.getWorkspaceInvitations(workspaceId, userId);
     },
   },
   Mutation: {
@@ -83,6 +100,30 @@ export const workspaceResolvers = {
     ) => {
       const callerId = await requireAuth(ctx);
       return workspaceService.updateMemberRole(workspaceId, memberId, role as WorkspaceRole, callerId);
+    },
+    inviteToWorkspace: async (
+      _: unknown,
+      { workspaceId, email, role }: { workspaceId: string; email: string; role: string },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return workspaceInvitationService.inviteToWorkspace(workspaceId, email, role as WorkspaceRole, userId);
+    },
+    acceptInvitation: async (
+      _: unknown,
+      { token }: { token: string },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return workspaceInvitationService.acceptInvitation(token, userId);
+    },
+    revokeInvitation: async (
+      _: unknown,
+      { workspaceId, email }: { workspaceId: string; email: string },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return workspaceInvitationService.revokeInvitation(workspaceId, email, userId);
     },
   },
 };

@@ -39,5 +39,18 @@ export const workspaceMutations = gql`
       userId:      String!
       role:        String!
     ): Workspace
+
+    inviteToWorkspace(
+      workspaceId: ID!
+      email:       String!
+      role:        String!
+    ): WorkspaceInvitation
+
+    acceptInvitation(token: String!): Workspace
+
+    revokeInvitation(
+      workspaceId: ID!
+      email:       String!
+    ): Boolean
   }
 `;

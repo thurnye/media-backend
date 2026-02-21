@@ -22,6 +22,24 @@ export const workspaceTypes = gql`
     autoPublishEnabled: Boolean
   }
 
+  type WorkspaceInvitation {
+    id: ID
+    workspaceId: ID
+    email: String
+    role: String
+    status: String
+    expiresAt: String
+    createdAt: String
+  }
+
+  type MemberSuggestion {
+    userId: ID
+    email: String
+    firstName: String
+    lastName: String
+    avatarUrl: String
+  }
+
   type Workspace {
     id: ID
     name: String

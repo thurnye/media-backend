@@ -27,6 +27,10 @@ export const GLOBAL_CONSTANTS = {
             MEMBER_ALREADY_EXISTS: 'User is already a member of this workspace',
             MEMBER_NOT_FOUND:      'Member not found in this workspace',
             OWNER_ONLY:            'Only the workspace owner can perform this action',
+            INVITATION_NOT_FOUND:  'Invitation not found',
+            INVITATION_EXPIRED:    'This invitation has expired or already been used',
+            ALREADY_INVITED:       'An invitation has already been sent to this email',
+            CANNOT_INVITE_MEMBER:  'This user is already a member of this workspace',
         },
         PLATFORM_ACCOUNT: {
             NOT_FOUND:         'Platform account not found',

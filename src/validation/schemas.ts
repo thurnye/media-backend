@@ -78,6 +78,13 @@ export const UpdateWorkspaceSchema = z
   })
   .refine(data => Object.keys(data).length > 0, { message: 'No fields provided to update' });
 
+// ─── Workspace invitation schemas ────────────────────────────────────────────
+
+export const InviteToWorkspaceSchema = z.object({
+  email: z.string().email({ message: 'A valid email is required' }),
+  role:  z.enum(['admin', 'manager', 'member']),
+});
+
 // ─── PlatformAccount schemas ──────────────────────────────────────────────────
 
 export const ConnectPlatformAccountSchema = z.object({

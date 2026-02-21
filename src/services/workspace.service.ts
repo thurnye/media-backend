@@ -105,6 +105,49 @@ const workspaceService = {
     const updated = await workspaceRepository.updateMemberRole(workspaceId, targetUserId, role);
     return updated!;
   },
+
+  /** Returns users from the caller's other workspaces who are not already in the target workspace. */
+  suggestMembers: async (workspaceId: string, query: string, callerId: string) => {
+    await requireMembership(workspaceId, callerId);
+
+    const workspace = await workspaceRepository.findById(workspaceId);
+    if (!workspace) throw new AppError('NOT_FOUND', WORKSPACE.NOT_FOUND);
+
+    const currentMemberIds = new Set(workspace.members.map(m => m.userId));
+
+    // Get all workspaces the caller belongs to
+    const callerWorkspaces = await workspaceRepository.findByUserId(callerId);
+
+    // Collect unique userIds from those workspaces (excluding current workspace members)
+    const candidateIds = new Set<string>();
+    for (const ws of callerWorkspaces) {
+      for (const m of ws.members) {
+        if (!currentMemberIds.has(m.userId) && m.userId !== callerId) {
+          candidateIds.add(m.userId);
+        }
+      }
+    }
+
+    if (candidateIds.size === 0) return [];
+
+    const users = await userRepository.findByIds([...candidateIds]);
+    const lowerQuery = query.toLowerCase();
+
+    return users
+      .filter(u =>
+        u.email.toLowerCase().includes(lowerQuery) ||
+        u.firstName.toLowerCase().includes(lowerQuery) ||
+        u.lastName.toLowerCase().includes(lowerQuery),
+      )
+      .slice(0, 10)
+      .map(u => ({
+        userId:    (u as any)._id.toString(),
+        email:     u.email,
+        firstName: u.firstName,
+        lastName:  u.lastName,
+        avatarUrl: u.avatarUrl ?? null,
+      }));
+  },
 };
 
 export default workspaceService;
