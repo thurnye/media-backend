@@ -11,6 +11,7 @@ import './config/db';
 import { typeDefs, resolvers } from './graphql/schema';
 import authService from './services/auth.service';
 import oauthRoutes from './routes/oauth.routes';
+import mediaRoutes from './routes/media.routes';
 import { initScheduler } from './jobs/scheduler';
 import { logger } from './config/logger';
 import { AppError } from './errors/AppError';
@@ -50,12 +51,24 @@ export async function createApp() {
   // Structured JSON request logging (replaces morgan)
   app.use(pinoHttp({ logger }));
 
+  // Serve uploaded media files statically
+  app.use('/uploads', express.static('uploads'));
+
   // OAuth REST routes (before Apollo middleware)
   app.use(cookieParser());
   app.use(
     '/oauth',
     cors({ origin: process.env.CLIENT_URL || 'http://localhost:4200', credentials: true }),
     oauthRoutes,
+  );
+
+  // Media upload/delete REST routes
+  app.use(
+    '/api/media',
+    cors({ origin: process.env.CLIENT_URL || 'http://localhost:4200', credentials: true }),
+    cookieParser(),
+    authService.authMiddleware,
+    mediaRoutes,
   );
 
   app.use(

@@ -27,6 +27,7 @@ export const postTypes = gql`
     createdBy: ID
     title: String
     description: String
+    mediaIds: [ID]
     category: String
     tags: [String]
     status: String

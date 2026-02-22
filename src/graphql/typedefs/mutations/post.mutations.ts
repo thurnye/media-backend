@@ -6,6 +6,7 @@ export const postMutations = gql`
       workspaceId: ID!
       title:       String!
       description: String
+      mediaIds:    [ID]
       category:    String
       tags:        [String]
       priority:    String
@@ -16,6 +17,7 @@ export const postMutations = gql`
       id:          ID!
       title:       String
       description: String
+      mediaIds:    [ID]
       category:    String
       tags:        [String]
       priority:    String

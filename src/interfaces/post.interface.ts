@@ -1,4 +1,8 @@
-import { PostCategory, PostStatus, PriorityLevel } from '../config/enums/post.enums';
+import {
+  PostCategory,
+  PostStatus,
+  PriorityLevel,
+} from '../config/enums/post.enums';
 
 export interface IRecycleSettings {
   enabled: boolean;
@@ -27,8 +31,6 @@ export interface IApprovalWorkflow {
   comments: IApprovalComment[];
 }
 
-
-
 export interface IPost {
   _id?: string;
   workspaceId: string;
@@ -36,6 +38,7 @@ export interface IPost {
 
   title: string;
   description?: string;
+  mediaIds?: string[];
 
   category?: PostCategory;
   tags: string[];

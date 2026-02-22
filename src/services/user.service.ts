@@ -40,6 +40,7 @@ const userService = {
         email:     user.email,
         firstName: user.firstName,
         lastName:  user.lastName,
+        avatarUrl: user.avatarUrl,
       },
     };
   },
@@ -64,6 +65,7 @@ const userService = {
         email:     user.email,
         firstName: user.firstName,
         lastName:  user.lastName,
+        avatarUrl: user.avatarUrl,
       },
     };
   },

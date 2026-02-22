@@ -28,6 +28,10 @@ const PostSchema = new Schema<IPost>(
       default: PostStatus.DRAFT,
       index: true,
     },
+    mediaIds: {
+      type: [String],
+      default: [],
+    },
 
     priority: {
       type: String,
