@@ -3,6 +3,7 @@ import {
   PostStatus,
   PriorityLevel,
 } from '../config/enums/post.enums';
+import { WorkspaceRole } from '../config/enums/workspace.enums';
 
 export interface IRecycleSettings {
   enabled: boolean;
@@ -24,10 +25,16 @@ export interface IApprovalComment {
   createdAt: Date;
 }
 
+export interface IWorkspaceMember {
+  userId: string;
+  role: WorkspaceRole;
+}
+
 export interface IApprovalWorkflow {
-  requiredApprovers: string[];
-  approvedBy: string[];
-  rejectedBy: string[];
+  requiredApprovers: IWorkspaceMember[];
+  approvedBy: IWorkspaceMember[];
+  rejectedBy: IWorkspaceMember[];
+  cancelledBY: IWorkspaceMember[];
   comments: IApprovalComment[];
 }
 

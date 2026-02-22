@@ -7,6 +7,7 @@ import {
   PriorityLevel,
 } from '../config/enums/post.enums';
 import { IPost } from '../interfaces/post.interface';
+import { WorkspaceRole } from '../config/enums/workspace.enums';
 
 const PostSchema = new Schema<IPost>(
   {
@@ -56,9 +57,36 @@ const PostSchema = new Schema<IPost>(
     },
 
     approvalWorkflow: {
-      requiredApprovers: [String],
-      approvedBy: [String],
-      rejectedBy: [String],
+      requiredApprovers: [
+        {
+          userId: { type: String, required: true },
+          role: {
+            type: String,
+            enum: Object.values(WorkspaceRole),
+            default: WorkspaceRole.MEMBER,
+          },
+        },
+      ],
+      approvedBy: [
+        {
+          userId: { type: String, required: true },
+          role: {
+            type: String,
+            enum: Object.values(WorkspaceRole),
+            default: WorkspaceRole.MEMBER,
+          },
+        },
+      ],
+      rejectedBy: [
+        {
+          userId: { type: String, required: true },
+          role: {
+            type: String,
+            enum: Object.values(WorkspaceRole),
+            default: WorkspaceRole.MEMBER,
+          },
+        },
+      ],
       comments: [
         {
           userId: String,
