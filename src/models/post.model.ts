@@ -87,6 +87,26 @@ const PostSchema = new Schema<IPost>(
           },
         },
       ],
+      cancelledBy: [
+        {
+          userId: { type: String, required: true },
+          role: {
+            type: String,
+            enum: Object.values(WorkspaceRole),
+            default: WorkspaceRole.MEMBER,
+          },
+        },
+      ],
+      archivedBy: [
+        {
+          userId: { type: String, required: true },
+          role: {
+            type: String,
+            enum: Object.values(WorkspaceRole),
+            default: WorkspaceRole.MEMBER,
+          },
+        },
+      ],
       comments: [
         {
           userId: String,

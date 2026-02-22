@@ -9,7 +9,7 @@ const ALLOWED_TRANSITIONS: Record<PostStatus, PostStatus[]> = {
   [PostStatus.DRAFT]:                [PostStatus.PENDING_APPROVAL, PostStatus.APPROVED, PostStatus.SCHEDULED, PostStatus.ARCHIVED],
   [PostStatus.PENDING_APPROVAL]:     [PostStatus.APPROVED, PostStatus.REJECTED, PostStatus.DRAFT],
   [PostStatus.APPROVED]:             [PostStatus.SCHEDULED, PostStatus.PUBLISHED, PostStatus.ARCHIVED],
-  [PostStatus.REJECTED]:             [PostStatus.DRAFT],
+  [PostStatus.REJECTED]:             [PostStatus.DRAFT, PostStatus.PENDING_APPROVAL, PostStatus.APPROVED],
   [PostStatus.SCHEDULED]:            [PostStatus.PUBLISHING, PostStatus.CANCELLED, PostStatus.DRAFT],
   [PostStatus.PUBLISHING]:           [PostStatus.PUBLISHED, PostStatus.PARTIALLY_PUBLISHED, PostStatus.FAILED],
   [PostStatus.PARTIALLY_PUBLISHED]:  [PostStatus.PUBLISHED, PostStatus.FAILED, PostStatus.ARCHIVED],

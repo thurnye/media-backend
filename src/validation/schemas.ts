@@ -30,6 +30,7 @@ export const CreatePostSchema = z.object({
   workspaceId: z.string().min(1, { message: 'Workspace ID is required' }),
   title:       z.string().min(1, { message: 'Post title is required' }).max(200, { message: 'Title must be 200 characters or fewer' }),
   description: z.string().max(5000, { message: 'Description must be 5000 characters or fewer' }).optional(),
+  mediaIds:    z.array(z.string().min(1)).optional(),
   category:    z.string().max(100).optional(),
   tags:        z.array(z.string()).optional(),
   priority:    z.enum(['low', 'medium', 'high']).optional(),
@@ -40,11 +41,13 @@ export const UpdatePostSchema = z
   .object({
     title:       z.string().min(1, { message: 'Title cannot be empty' }).max(200).optional(),
     description: z.string().max(5000).optional(),
+    mediaIds:    z.array(z.string().min(1)).optional(),
     category:    z.string().max(100).optional(),
     tags:        z.array(z.string()).optional(),
     priority:    z.enum(['low', 'medium', 'high']).optional(),
     status:      z.enum(['draft', 'pending_approval', 'approved', 'rejected', 'scheduled', 'publishing', 'partially_published', 'published', 'failed', 'cancelled', 'archived']).optional(),
     isEvergreen: z.boolean().optional(),
+    requiredApprovers: z.array(z.string().min(1)).optional(),
   })
   .refine(data => Object.keys(data).length > 0, { message: 'No fields provided to update' });
 

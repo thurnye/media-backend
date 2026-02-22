@@ -23,6 +23,7 @@ export const postMutations = gql`
       priority:    String
       status:      String
       isEvergreen: Boolean
+      requiredApprovers: [ID]
     ): Post
 
     deletePost(id: ID!): Post
@@ -37,5 +38,12 @@ export const postMutations = gql`
       intervalDays: Int!
       maxRepeats:   Int!
     ): Post
+
+    addPostReviewComment(
+      postId:          ID!
+      message:         String!
+      mediaIds:        [ID]
+      parentCommentId: ID
+    ): PostReviewComment
   }
 `;

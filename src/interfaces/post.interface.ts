@@ -34,7 +34,8 @@ export interface IApprovalWorkflow {
   requiredApprovers: IWorkspaceMember[];
   approvedBy: IWorkspaceMember[];
   rejectedBy: IWorkspaceMember[];
-  cancelledBY: IWorkspaceMember[];
+  cancelledBy: IWorkspaceMember[];
+  archivedBy: IWorkspaceMember[];
   comments: IApprovalComment[];
 }
 
@@ -77,4 +78,5 @@ export interface ICreatePostData extends Omit<
 
 export interface IUpdatePostData extends Partial<ICreatePostData> {
   status?: PostStatus;
+  requiredApprovers?: string[];
 }
