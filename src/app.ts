@@ -2,6 +2,8 @@ import express from 'express';
 import pinoHttp from 'pino-http';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import fs from 'fs';
+import path from 'path';
 import { json } from 'body-parser';
 import { ApolloServer } from '@apollo/server';
 import { expressMiddleware } from '@apollo/server/express4';
@@ -44,6 +46,10 @@ function formatError(formattedError: GraphQLFormattedError, error: unknown): Gra
 
 export async function createApp() {
   const app = express();
+  const uploadsDir = path.join(__dirname, '../uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
 
   const server = new ApolloServer({ typeDefs, resolvers, formatError });
   await server.start();
@@ -52,7 +58,7 @@ export async function createApp() {
   app.use(pinoHttp({ logger }));
 
   // Serve uploaded media files statically
-  app.use('/uploads', express.static('uploads'));
+  app.use('/uploads', express.static(uploadsDir));
 
   // OAuth REST routes (before Apollo middleware)
   app.use(cookieParser());
