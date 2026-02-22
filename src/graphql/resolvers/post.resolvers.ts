@@ -1,5 +1,4 @@
-import { ICreatePostData, IUpdatePostData } from '../../interfaces/post.interface';
-import { IPaginationArgs } from '../../interfaces/user.interface';
+import { ICreatePostData, IPostListArgs, IUpdatePostData } from '../../interfaces/post.interface';
 import { IContext } from '../../interfaces/auth.interface';
 import postService from '../../services/post.service';
 import mediaRepository from '../../repositories/media.repository';
@@ -85,7 +84,7 @@ export const postResolvers = {
   Query: {
     posts: async (
       _: unknown,
-      args: IPaginationArgs & { workspaceId: string },
+      args: IPostListArgs,
       ctx: IContext,
     ) => {
       const userId = await requireAuth(ctx);

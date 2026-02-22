@@ -4,6 +4,7 @@ import {
   PriorityLevel,
 } from '../config/enums/post.enums';
 import { WorkspaceRole } from '../config/enums/workspace.enums';
+import { IPaginationArgs } from './user.interface';
 
 export interface IRecycleSettings {
   enabled: boolean;
@@ -79,4 +80,15 @@ export interface ICreatePostData extends Omit<
 export interface IUpdatePostData extends Partial<ICreatePostData> {
   status?: PostStatus;
   requiredApprovers?: string[];
+}
+
+export interface IPostListArgs extends IPaginationArgs {
+  workspaceId: string;
+  search?: string;
+  status?: string;
+  category?: string;
+  priority?: string;
+  isEvergreen?: boolean;
+  sortBy?: string;
+  createdBy?: string;
 }

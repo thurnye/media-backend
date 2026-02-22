@@ -1,6 +1,6 @@
-import { ICreatePostData, IPost, IUpdatePostData } from '../interfaces/post.interface';
+import { ICreatePostData, IPost, IPostListArgs, IUpdatePostData } from '../interfaces/post.interface';
 import { IPostReviewComment } from '../interfaces/postReviewComment.interface';
-import { IPaginatedResult, IPaginationArgs, IUser } from '../interfaces/user.interface';
+import { IPaginatedResult, IUser } from '../interfaces/user.interface';
 import postRepository from '../repositories/post.repository';
 import postReviewCommentRepository from '../repositories/postReviewComment.repository';
 import workspaceRepository from '../repositories/workspace.repository';
@@ -89,11 +89,11 @@ const resolveFinalReviewStatus = (
 const postService = {
   /** Any workspace member can list posts. */
   getPosts: async (
-    args: IPaginationArgs & { workspaceId: string },
+    args: IPostListArgs,
     userId: string,
   ): Promise<IPaginatedResult<IPost>> => {
     await requireMembership(args.workspaceId, userId);
-    return postRepository.findAll(args, args.workspaceId);
+    return postRepository.findAll(args);
   },
 
   /** Any workspace member can read a single post. */
