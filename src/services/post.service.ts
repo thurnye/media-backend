@@ -61,6 +61,31 @@ const toWorkflowMembers = (
   }));
 };
 
+const resolveFinalReviewStatus = (
+  requiredReviewerIds: string[],
+  approvedByIds: string[],
+  rejectedByIds: string[],
+  cancelledByIds: string[],
+  archivedByIds: string[],
+): PostStatus => {
+  const decidedIds = new Set([
+    ...approvedByIds,
+    ...rejectedByIds,
+    ...cancelledByIds,
+    ...archivedByIds,
+  ]);
+  const allReviewersDecided =
+    requiredReviewerIds.length > 0 &&
+    requiredReviewerIds.every((reviewerId) => decidedIds.has(reviewerId));
+
+  if (!allReviewersDecided) return PostStatus.PENDING_APPROVAL;
+  if (archivedByIds.length > 0) return PostStatus.ARCHIVED;
+  if (cancelledByIds.length > 0) return PostStatus.CANCELLED;
+  if (rejectedByIds.some((id) => requiredReviewerIds.includes(id))) return PostStatus.REJECTED;
+  if (requiredReviewerIds.every((id) => approvedByIds.includes(id))) return PostStatus.APPROVED;
+  return PostStatus.PENDING_APPROVAL;
+};
+
 const postService = {
   /** Any workspace member can list posts. */
   getPosts: async (
@@ -180,19 +205,20 @@ const postService = {
     const post = await postRepository.findById(id);
     if (!post) throw new AppError('NOT_FOUND', POST.POST_NOT_FOUND);
 
-    const isReviewerCancellationDecision =
-      data.status === PostStatus.CANCELLED && post.status === PostStatus.PENDING_APPROVAL;
+    const isReviewerDecisionStatus =
+      [PostStatus.CANCELLED, PostStatus.ARCHIVED].includes(data.status as PostStatus) &&
+      [PostStatus.PENDING_APPROVAL, PostStatus.REJECTED].includes(post.status as PostStatus);
     const role = await requirePermission(
       post.workspaceId,
       userId,
-      isReviewerCancellationDecision ? Permission.APPROVE_POST : Permission.UPDATE_POST,
+      isReviewerDecisionStatus ? Permission.APPROVE_POST : Permission.UPDATE_POST,
     );
 
-    if (!isReviewerCancellationDecision && role === WorkspaceRole.MANAGER && post.createdBy.toString() !== userId) {
+    if (!isReviewerDecisionStatus && role === WorkspaceRole.MANAGER && post.createdBy.toString() !== userId) {
       throw new AppError('FORBIDDEN', POST.NOT_OWNER);
     }
 
-    if (isReviewerCancellationDecision) {
+    if (isReviewerDecisionStatus) {
       const requiredReviewerIds = getReviewerIdsFromPost(post);
       if (!requiredReviewerIds.includes(userId)) {
         throw new AppError('FORBIDDEN', 'Only assigned reviewers can submit review decisions');
@@ -227,6 +253,18 @@ const postService = {
       } as any;
 
       newlyAddedReviewerIds = uniqueApproverIds.filter((id) => !previousReviewerIds.includes(id));
+
+      // If no reviewers remain, reset the workflow and send the post back to draft.
+      if (uniqueApproverIds.length === 0) {
+        payload.status = PostStatus.DRAFT;
+        payload.approvalWorkflow = {
+          ...(payload.approvalWorkflow as any),
+          approvedBy: [],
+          rejectedBy: [],
+          cancelledBy: [],
+          archivedBy: [],
+        } as any;
+      }
     }
 
     // Auto-submit for approval once at least one required reviewer is assigned.
@@ -247,20 +285,39 @@ const postService = {
       const roleByUserId = new Map((workspace?.members ?? []).map((member) => [member.userId, member.role]));
       const workflow = (payload.approvalWorkflow ?? post.approvalWorkflow ?? {}) as any;
 
-      if (post.status === PostStatus.PENDING_APPROVAL && payload.status === PostStatus.CANCELLED) {
+      if (
+        isReviewerDecisionStatus &&
+        [PostStatus.CANCELLED, PostStatus.ARCHIVED].includes(payload.status as PostStatus)
+      ) {
         const approvedByIds = toMemberIds(workflow.approvedBy).filter((id) => id !== userId);
         const rejectedByIds = toMemberIds(workflow.rejectedBy).filter((id) => id !== userId);
+        const cancelledByIds = toMemberIds(workflow.cancelledBy).filter((id) => id !== userId);
         const archivedByIds = toMemberIds(workflow.archivedBy).filter((id) => id !== userId);
-        const cancelledByIds = Array.from(
-          new Set([...toMemberIds(workflow.cancelledBy).filter((id) => id !== userId), userId]),
-        );
+
+        const nextCancelledByIds =
+          payload.status === PostStatus.CANCELLED
+            ? Array.from(new Set([...cancelledByIds, userId]))
+            : cancelledByIds;
+        const nextArchivedByIds =
+          payload.status === PostStatus.ARCHIVED
+            ? Array.from(new Set([...archivedByIds, userId]))
+            : archivedByIds;
 
         workflow.approvedBy = toWorkflowMembers(approvedByIds, roleByUserId, role);
         workflow.rejectedBy = toWorkflowMembers(rejectedByIds, roleByUserId, role);
-        workflow.archivedBy = toWorkflowMembers(archivedByIds, roleByUserId, role);
-        workflow.cancelledBy = toWorkflowMembers(cancelledByIds, roleByUserId, role);
-        // Any cancellation decision in review flow auto-rejects the post.
-        nextStatus = PostStatus.REJECTED;
+        workflow.cancelledBy = toWorkflowMembers(nextCancelledByIds, roleByUserId, role);
+        workflow.archivedBy = toWorkflowMembers(nextArchivedByIds, roleByUserId, role);
+
+        const requiredReviewerIds = toMemberIds(
+          (workflow.requiredApprovers ?? post.approvalWorkflow?.requiredApprovers) as any,
+        );
+        nextStatus = resolveFinalReviewStatus(
+          requiredReviewerIds,
+          approvedByIds,
+          rejectedByIds,
+          nextCancelledByIds,
+          nextArchivedByIds,
+        );
       } else if (payload.status === PostStatus.ARCHIVED) {
         const memberIds = Array.from(new Set([...toMemberIds(workflow.archivedBy), userId]));
         workflow.archivedBy = memberIds.map((id) => ({
@@ -278,7 +335,10 @@ const postService = {
         }
       }
 
-      if (post.status === PostStatus.PENDING_APPROVAL && nextStatus === PostStatus.APPROVED) {
+      if (
+        [PostStatus.PENDING_APPROVAL, PostStatus.REJECTED].includes(post.status as PostStatus) &&
+        nextStatus === PostStatus.APPROVED
+      ) {
         const requiredReviewerIds = toMemberIds(
           (workflow.requiredApprovers ?? post.approvalWorkflow?.requiredApprovers) as any,
         );
@@ -431,13 +491,14 @@ const postService = {
     const cancelledBy = toWorkflowMembers(cancelledByIds, roleByUserId, actorRole);
     const archivedBy = toWorkflowMembers(archivedByIds, roleByUserId, actorRole);
 
-    const allReviewersApproved = requiredReviewerIds.every((id) => approvedByIds.includes(id));
-    const hasBlockingDecision = rejectedByIds.length > 0 || cancelledByIds.length > 0;
-    const nextStatus = hasBlockingDecision
-      ? PostStatus.REJECTED
-      : allReviewersApproved
-        ? PostStatus.APPROVED
-        : PostStatus.PENDING_APPROVAL;
+    const nextStatus = resolveFinalReviewStatus(
+      requiredReviewerIds,
+      approvedByIds,
+      rejectedByIds,
+      cancelledByIds,
+      archivedByIds,
+    );
+    const allReviewersApproved = nextStatus === PostStatus.APPROVED;
 
     if (post.status !== nextStatus) {
       validateTransition(post.status as PostStatus, nextStatus);
@@ -518,8 +579,19 @@ const postService = {
       ...(post.approvalWorkflow?.comments ?? []),
       { userId, message: reason, createdAt: new Date() },
     ];
+    const nextStatus = resolveFinalReviewStatus(
+      requiredReviewerIds,
+      approvedByIds,
+      rejectedByIds,
+      cancelledByIds,
+      archivedByIds,
+    );
+    if (post.status !== nextStatus) {
+      validateTransition(post.status as PostStatus, nextStatus);
+    }
+
     const updated = await postRepository.update(postId, {
-      status: PostStatus.REJECTED,
+      status: nextStatus,
       approvalWorkflow: { ...post.approvalWorkflow, approvedBy, rejectedBy, cancelledBy, archivedBy, comments },
     } as any);
 
