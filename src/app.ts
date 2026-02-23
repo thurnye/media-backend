@@ -54,8 +54,27 @@ export async function createApp() {
   const server = new ApolloServer({ typeDefs, resolvers, formatError });
   await server.start();
 
-  // Structured JSON request logging (replaces morgan)
-  app.use(pinoHttp({ logger }));
+  // Structured HTTP logging with minimal, non-sensitive fields
+  app.use(
+    pinoHttp({
+      logger,
+      serializers: {
+        req: (req) => ({
+          id: req.id,
+          method: req.method,
+          url: req.url,
+          remoteAddress: req.socket?.remoteAddress,
+        }),
+        res: (res) => ({
+          statusCode: res.statusCode,
+        }),
+        err: (err) => ({
+          type: err.name,
+          message: err.message,
+        }),
+      },
+    }),
+  );
 
   // Serve uploaded media files statically
   app.use('/uploads', express.static(uploadsDir));

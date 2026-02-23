@@ -156,6 +156,53 @@ const emailService = {
       `,
     });
   },
+
+  sendPlatformPublishResult: async (
+    to: string,
+    params: {
+      postTitle: string;
+      platform: string;
+      status: 'published' | 'failed';
+      workspaceId: string;
+      postId: string;
+      error?: string;
+      publishedAt?: Date;
+    },
+  ): Promise<void> => {
+    const postUrl = `${CLIENT_URL}/dashboard/workspace/${params.workspaceId}/post/${params.postId}`;
+    const isSuccess = params.status === 'published';
+    const subject = isSuccess
+      ? `Published successfully: "${params.postTitle}" on ${params.platform}`
+      : `Publish failed: "${params.postTitle}" on ${params.platform}`;
+    const title = isSuccess ? 'Platform Publish Succeeded' : 'Platform Publish Failed';
+    const summary = isSuccess
+      ? `Your post <strong>"${params.postTitle}"</strong> was published successfully on <strong>${params.platform}</strong>.`
+      : `Your post <strong>"${params.postTitle}"</strong> failed to publish on <strong>${params.platform}</strong>.`;
+
+    await transporter.sendMail({
+      from: FROM,
+      to,
+      subject,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+          <h2 style="color: #1a1a2e; margin: 0 0 16px;">${title}</h2>
+          <p style="color: #344054; font-size: 15px; line-height: 1.6; margin: 0 0 12px;">
+            ${summary}
+          </p>
+          ${
+            isSuccess
+              ? `<p style="color:#475467; margin:0 0 20px;">Published at: <strong>${(params.publishedAt ?? new Date()).toISOString()}</strong></p>`
+              : params.error
+                ? `<p style="color:#991b1b; background:#fef2f2; border:1px solid #fecaca; padding:12px; border-radius:8px; margin: 0 0 20px;">Reason: ${params.error}</p>`
+                : ''
+          }
+          <a href="${postUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">
+            Open Post
+          </a>
+        </div>
+      `,
+    });
+  },
 };
 
 export default emailService;

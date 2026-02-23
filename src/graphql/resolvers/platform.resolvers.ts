@@ -86,7 +86,18 @@ export const platformResolvers = {
     },
     createPlatformPost: async (
       _: unknown,
-      args: { postId: string; platform: string; accountId: string; caption: string; hashtags?: string[]; firstComment?: string; scheduledAt?: string; timezone?: string },
+      args: {
+        postId: string;
+        platform: string;
+        accountId: string;
+        caption: string;
+        hashtags?: string[];
+        firstComment?: string;
+        media?: Array<{ type: 'image' | 'video' | 'carousel'; url: string; altText?: string; thumbnailUrl?: string }>;
+        status?: string;
+        scheduledAt?: string;
+        timezone?: string;
+      },
       ctx: IContext,
     ) => {
       const userId = await requireAuth(ctx);
@@ -94,7 +105,14 @@ export const platformResolvers = {
     },
     updatePlatformPost: async (
       _: unknown,
-      args: { id: string; caption?: string; hashtags?: string[]; scheduledAt?: string; status?: string },
+      args: {
+        id: string;
+        caption?: string;
+        hashtags?: string[];
+        media?: Array<{ type: 'image' | 'video' | 'carousel'; url: string; altText?: string; thumbnailUrl?: string }>;
+        scheduledAt?: string;
+        status?: string;
+      },
       ctx: IContext,
     ) => {
       const userId = await requireAuth(ctx);
@@ -108,7 +126,14 @@ export const platformResolvers = {
       _: unknown,
       args: {
         postId: string;
-        entries: Array<{ platform: string; accountId: string; caption: string; hashtags?: string[]; firstComment?: string }>;
+        entries: Array<{
+          platform: string;
+          accountId: string;
+          caption: string;
+          hashtags?: string[];
+          firstComment?: string;
+          media?: Array<{ type: 'image' | 'video' | 'carousel'; url: string; altText?: string; thumbnailUrl?: string }>;
+        }>;
         scheduledAt?: string;
         timezone?: string;
       },

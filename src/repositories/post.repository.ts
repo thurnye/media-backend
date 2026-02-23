@@ -8,6 +8,7 @@ import {
   IPaginatedResult,
 } from '../interfaces/user.interface';
 import Post from '../models/post.model';
+import PlatformPost from '../models/platform.model';
 
 class PostRepository {
   private escapeRegex(value: string): string {
@@ -27,6 +28,7 @@ class PostRepository {
       status,
       category,
       priority,
+      platform,
       isEvergreen,
       sortBy = 'newest',
       createdBy,
@@ -41,10 +43,34 @@ class PostRepository {
     if (createdBy?.trim()) {
       filter.createdBy = { $regex: this.escapeRegex(createdBy.trim()), $options: 'i' };
     }
+    if (platform?.trim()) {
+      const platformPostIds = await PlatformPost.distinct('postId', {
+        platform: platform.trim().toLowerCase(),
+        isActive: true,
+      });
+      filter._id = { $in: platformPostIds };
+    }
     if (search?.trim()) {
       const escaped = this.escapeRegex(search.trim());
       const regex = { $regex: escaped, $options: 'i' };
-      filter.$or = [{ title: regex }, { description: regex }, { tags: regex }, { createdBy: regex }];
+      const platformCandidates = ['instagram', 'facebook', 'twitter', 'linkedin', 'tiktok', 'youtube']
+        .filter((name) => name.includes(search.trim().toLowerCase()));
+
+      let platformSearchPostIds: string[] = [];
+      if (platformCandidates.length) {
+        platformSearchPostIds = await PlatformPost.distinct('postId', {
+          platform: { $in: platformCandidates },
+          isActive: true,
+        });
+      }
+
+      filter.$or = [
+        { title: regex },
+        { description: regex },
+        { tags: regex },
+        { createdBy: regex },
+        ...(platformSearchPostIds.length ? [{ _id: { $in: platformSearchPostIds } }] : []),
+      ];
     }
 
     const sortMap: Record<string, Record<string, 1 | -1>> = {

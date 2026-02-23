@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+const nullToUndefined = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((value) => (value === null ? undefined : value), schema);
+
 // ─── User schemas ────────────────────────────────────────────────────────────
 
 export const CreateUserSchema = z.object({
@@ -120,6 +123,15 @@ export const CreatePlatformPostSchema = z.object({
   caption:      z.string().min(1, { message: 'Caption is required' }).max(5000),
   hashtags:     z.array(z.string()).optional(),
   firstComment: z.string().optional(),
+  media:        z.array(
+    z.object({
+      type: z.enum(['image', 'video', 'carousel']),
+      url: z.string().min(1),
+      altText: z.string().optional(),
+      thumbnailUrl: z.string().optional(),
+    }),
+  ).optional(),
+  status:       z.enum(['draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled']).optional(),
   scheduledAt:  z.string().optional(),
   timezone:     z.string().optional(),
 });
@@ -127,10 +139,18 @@ export const CreatePlatformPostSchema = z.object({
 export const UpdatePlatformPostSchema = z
   .object({
     id:          z.string().min(1, { message: 'Platform post ID is required' }),
-    caption:     z.string().min(1).max(5000).optional(),
-    hashtags:    z.array(z.string()).optional(),
-    scheduledAt: z.string().optional(),
-    status:      z.enum(['draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled']).optional(),
+    caption:     nullToUndefined(z.string().min(1).max(5000).optional()),
+    hashtags:    nullToUndefined(z.array(nullToUndefined(z.string())).optional()),
+    media:       nullToUndefined(z.array(
+      z.object({
+        type: nullToUndefined(z.enum(['image', 'video', 'carousel'])),
+        url: z.string().min(1),
+        altText: nullToUndefined(z.string().optional()),
+        thumbnailUrl: nullToUndefined(z.string().optional()),
+      }),
+    ).optional()),
+    scheduledAt: nullToUndefined(z.string().optional()),
+    status:      nullToUndefined(z.enum(['draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled']).optional()),
   })
   .refine(data => Object.keys(data).length > 1, { message: 'No fields provided to update' });
 
@@ -150,6 +170,14 @@ export const CreatePlatformPostBatchSchema = z.object({
     caption:      z.string().min(1).max(5000),
     hashtags:     z.array(z.string()).optional(),
     firstComment: z.string().optional(),
+    media:        z.array(
+      z.object({
+        type: z.enum(['image', 'video', 'carousel']),
+        url: z.string().min(1),
+        altText: z.string().optional(),
+        thumbnailUrl: z.string().optional(),
+      }),
+    ).optional(),
   })).min(1, { message: 'At least one platform entry is required' }),
   scheduledAt: z.string().optional(),
   timezone:    z.string().optional(),

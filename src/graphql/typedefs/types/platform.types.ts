@@ -1,6 +1,13 @@
 import { gql } from 'graphql-tag';
 
 export const platformTypes = gql`
+  type PlatformMediaItem {
+    type: String
+    url: String
+    altText: String
+    thumbnailUrl: String
+  }
+
   type PlatformAccount {
     id: ID
     userId: ID
@@ -19,6 +26,7 @@ export const platformTypes = gql`
     caption: String
     hashtags: [String]
     firstComment: String
+    media: [PlatformMediaItem]
   }
 
   type PublishingInfo {

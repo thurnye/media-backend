@@ -10,6 +10,7 @@ export const postQueries = gql`
       status: String
       category: String
       priority: String
+      platform: String
       isEvergreen: Boolean
       sortBy: String
       createdBy: String

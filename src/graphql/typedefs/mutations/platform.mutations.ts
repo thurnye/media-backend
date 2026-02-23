@@ -40,6 +40,8 @@ export const platformMutations = gql`
       caption:      String!
       hashtags:     [String]
       firstComment: String
+      media:        [PlatformMediaInput!]
+      status:       String
       scheduledAt:  String
       timezone:     String
     ): PlatformPost
@@ -48,6 +50,7 @@ export const platformMutations = gql`
       id:          ID!
       caption:     String
       hashtags:    [String]
+      media:       [PlatformMediaInput!]
       scheduledAt: String
       status:      String
     ): PlatformPost
@@ -68,5 +71,13 @@ export const platformMutations = gql`
     caption:      String!
     hashtags:     [String]
     firstComment: String
+    media:        [PlatformMediaInput!]
+  }
+
+  input PlatformMediaInput {
+    type:     String!
+    url:      String!
+    altText:  String
+    thumbnailUrl: String
   }
 `;
