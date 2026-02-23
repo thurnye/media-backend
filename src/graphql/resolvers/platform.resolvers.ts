@@ -29,6 +29,22 @@ export const platformResolvers = {
       const userId = await requireAuth(ctx);
       return platformPostService.getPlatformPostsByPost(postId, userId);
     },
+    workspacePlatformPosts: async (
+      _: unknown,
+      { workspaceId }: { workspaceId: string },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return platformPostService.getPlatformPostsByWorkspace(workspaceId, userId);
+    },
+    workspacePlatformPostsByDay: async (
+      _: unknown,
+      { workspaceId, date }: { workspaceId: string; date: string },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return platformPostService.getPlatformPostsByWorkspaceDay(workspaceId, date, userId);
+    },
     platformPost: async (_: unknown, { id }: { id: string }, ctx: IContext) => {
       const userId = await requireAuth(ctx);
       return platformPostService.getPlatformPost(id, userId);

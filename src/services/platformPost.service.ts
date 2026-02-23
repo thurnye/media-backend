@@ -140,6 +140,57 @@ const platformPostService = {
     return platformPostRepository.findByPostId(postId);
   },
 
+  /** Any workspace member can list all platform posts belonging to a workspace. */
+  getPlatformPostsByWorkspace: async (workspaceId: string, userId: string): Promise<IPlatformPost[]> => {
+    await requireMembership(workspaceId, userId);
+    return platformPostRepository.findByWorkspaceId(workspaceId);
+  },
+
+  /** Any workspace member can list platform posts for a specific day.
+   *  Matching rule: use publishedAt; if missing, use scheduledAt.
+   */
+  getPlatformPostsByWorkspaceDay: async (
+    workspaceId: string,
+    date: string,
+    userId: string,
+  ): Promise<IPlatformPost[]> => {
+    await requireMembership(workspaceId, userId);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      throw new AppError('VALIDATION_ERROR', 'Invalid date format. Expected YYYY-MM-DD');
+    }
+
+    const platformPosts = await platformPostRepository.findByWorkspaceId(workspaceId);
+
+    const toDateOnly = (value: unknown): { utc: string; local: string } | null => {
+      if (!value) return null;
+      if (typeof value === 'string') {
+        // Fast-path for ISO-like strings that already include a date prefix.
+        const prefix = value.slice(0, 10);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(prefix)) {
+          return { utc: prefix, local: prefix };
+        }
+      }
+
+      const parsed = value instanceof Date ? value : new Date(String(value));
+      if (Number.isNaN(parsed.getTime())) return null;
+
+      const utc = parsed.toISOString().slice(0, 10);
+      const localYear = parsed.getFullYear();
+      const localMonth = `${parsed.getMonth() + 1}`.padStart(2, '0');
+      const localDay = `${parsed.getDate()}`.padStart(2, '0');
+      const local = `${localYear}-${localMonth}-${localDay}`;
+      return { utc, local };
+    };
+
+    return platformPosts.filter((platformPost) => {
+      const published = toDateOnly(platformPost.publishing?.publishedAt);
+      const scheduled = toDateOnly(platformPost.publishing?.scheduledAt);
+      const effective = published ?? scheduled;
+      if (!effective) return false;
+      return effective.utc === date || effective.local === date;
+    });
+  },
+
   /** Any workspace member can view a single platform post. */
   getPlatformPost: async (id: string, userId: string): Promise<IPlatformPost> => {
     const platformPost = await platformPostRepository.findById(id);
