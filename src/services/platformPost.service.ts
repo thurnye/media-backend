@@ -29,6 +29,29 @@ const toMemberIds = (members: Array<{ userId?: string } | string> = []): string[
   return Array.from(new Set(ids));
 };
 
+const buildPublishRecipientEmails = async (
+  post: Awaited<ReturnType<typeof postRepository.findById>>,
+  triggeredByUserId?: string,
+): Promise<string[]> => {
+  if (!post) return [];
+  const reviewerIds = toMemberIds((post.approvalWorkflow?.requiredApprovers as any) ?? []);
+  const recipientIds = Array.from(
+    new Set([
+      post.createdBy,
+      ...reviewerIds,
+      ...(triggeredByUserId ? [triggeredByUserId] : []),
+    ]),
+  );
+  const recipients = await userRepository.findByIds(recipientIds);
+  return Array.from(
+    new Set(
+      recipients
+        .map((user) => user.email)
+        .filter((email): email is string => !!email),
+    ),
+  );
+};
+
 /** Returns the workspaceId for a post, throwing if the post doesn't exist. */
 async function getWorkspaceIdForPost(postId: string): Promise<string> {
   const post = await postRepository.findById(postId);
@@ -299,6 +322,32 @@ const platformPostService = {
     return normalizePlatformPostDates(platformPost);
   },
 
+  /** Enforce workspace workflow constraints before any publish/create action. */
+  assertPublishingAllowedForPost: async (postId: string): Promise<void> => {
+    const post = await postRepository.findById(postId);
+    if (!post) throw new AppError('NOT_FOUND', POST.POST_NOT_FOUND);
+
+    const workspace = await workspaceRepository.findById(post.workspaceId);
+    if (!workspace) throw new AppError('NOT_FOUND', 'Workspace not found');
+
+    const approvalRequired = !!workspace.settings?.approvalRequired;
+    if (!approvalRequired) return;
+
+    if (post.status !== 'approved') {
+      throw new AppError(
+        'BAD_REQUEST',
+        'This workspace requires approval: post must be approved before publishing.',
+      );
+    }
+
+    if ((post.priority ?? 'medium') !== 'high') {
+      throw new AppError(
+        'BAD_REQUEST',
+        'This workspace requires approval: post priority must be set to high before publishing.',
+      );
+    }
+  },
+
   /** ADMIN and MANAGER can create per-platform posts (schedule/publish). */
   createPlatformPost: async (input: ICreatePlatformPostInput, userId: string): Promise<IPlatformPost> => {
     const { error } = validate(CreatePlatformPostSchema, input);
@@ -306,6 +355,7 @@ const platformPostService = {
 
     const workspaceId = await getWorkspaceIdForPost(input.postId);
     await requirePermission(workspaceId, userId, Permission.PUBLISH_POST);
+    await platformPostService.assertPublishingAllowedForPost(input.postId);
 
     const targetStatus =
       (input.status as PublishingStatus) ??
@@ -324,6 +374,7 @@ const platformPostService = {
       publishing: {
         status:      targetStatus,
         scheduledAt: toDateObject(input.scheduledAt) ?? undefined,
+        reminderSentAt: undefined,
         timezone:    input.timezone,
       },
       isActive: true,
@@ -364,10 +415,15 @@ const platformPostService = {
     }
 
     if (normalizedInput.scheduledAt !== undefined || normalizedInput.status !== undefined) {
+      const nextStatus = normalizedInput.status as PublishingStatus | undefined;
+      const shouldResetReminder =
+        normalizedInput.scheduledAt !== undefined ||
+        nextStatus === PublishingStatus.SCHEDULED;
       data.publishing = {
         ...platformPost.publishing,
         ...(normalizedInput.status      !== undefined ? { status:      normalizedInput.status as PublishingStatus }  : {}),
         ...(normalizedInput.scheduledAt !== undefined ? { scheduledAt: toDateObject(normalizedInput.scheduledAt) ?? undefined } : {}),
+        ...(shouldResetReminder ? { reminderSentAt: undefined } : {}),
       };
     }
 
@@ -409,6 +465,7 @@ const platformPostService = {
 
     const workspaceId = await getWorkspaceIdForPost(input.postId);
     await requirePermission(workspaceId, userId, Permission.PUBLISH_POST);
+    await platformPostService.assertPublishingAllowedForPost(input.postId);
 
     const results: IPlatformPost[] = [];
     for (const entry of input.entries) {
@@ -425,6 +482,7 @@ const platformPostService = {
         publishing: {
           status:      input.scheduledAt ? PublishingStatus.SCHEDULED : PublishingStatus.PUBLISHING,
           scheduledAt: toDateObject(input.scheduledAt) ?? undefined,
+          reminderSentAt: undefined,
           timezone:    input.timezone,
         },
         isActive: true,
@@ -446,29 +504,19 @@ const platformPostService = {
   publishNow: async (platformPostId: string, triggeredByUserId?: string): Promise<IPlatformPost> => {
     const platformPost = await platformPostRepository.findById(platformPostId);
     if (!platformPost) throw new AppError('NOT_FOUND', PLATFORM_POST.NOT_FOUND);
+    await platformPostService.assertPublishingAllowedForPost(platformPost.postId);
     const post = await postRepository.findById(platformPost.postId);
     if (!post) throw new AppError('NOT_FOUND', POST.POST_NOT_FOUND);
     const postId = String(post._id ?? platformPost.postId);
-    const reviewerIds = toMemberIds((post.approvalWorkflow?.requiredApprovers as any) ?? []);
-    const recipientIds = Array.from(
-      new Set([
-        post.createdBy,
-        ...reviewerIds,
-        ...(triggeredByUserId ? [triggeredByUserId] : []),
-      ]),
-    );
-    const recipients = await userRepository.findByIds(recipientIds);
-    const recipientEmails = Array.from(
-      new Set(
-        recipients
-          .map((user) => user.email)
-          .filter((email): email is string => !!email),
-      ),
-    );
+    const recipientEmails = await buildPublishRecipientEmails(post, triggeredByUserId);
 
     // Mark as publishing
     await platformPostRepository.update(platformPostId, {
-      publishing: { ...platformPost.publishing, status: PublishingStatus.PUBLISHING },
+      publishing: {
+        ...platformPost.publishing,
+        status: PublishingStatus.PUBLISHING,
+        reminderSentAt: platformPost.publishing?.reminderSentAt,
+      },
     });
 
     // Get account with decrypted tokens
@@ -533,6 +581,71 @@ const platformPostService = {
       ),
     );
     return updated!;
+  },
+
+  processScheduledReminder: async (platformPostId: string): Promise<void> => {
+    const platformPost = await platformPostRepository.findById(platformPostId);
+    if (!platformPost) return;
+    if (platformPost.publishing?.status !== PublishingStatus.SCHEDULED) return;
+    if (!platformPost.publishing?.scheduledAt) return;
+    if (platformPost.publishing?.reminderSentAt) return;
+
+    const post = await postRepository.findById(platformPost.postId);
+    if (!post) return;
+
+    const workspace = await workspaceRepository.findById(post.workspaceId);
+    if (!workspace) return;
+    if (workspace.settings?.autoPublishEnabled) return;
+
+    const recipientEmails = await buildPublishRecipientEmails(post);
+    const scheduledAt = toDateObject(platformPost.publishing.scheduledAt) ?? new Date(platformPost.publishing.scheduledAt);
+
+    await Promise.all(
+      recipientEmails.map((email) =>
+        safeNotify(() =>
+          emailService.sendPlatformPublishReminder(email, {
+            postTitle: post.title,
+            platform: platformPost.platform,
+            workspaceId: post.workspaceId,
+            postId: String(post._id ?? platformPost.postId),
+            scheduledAt,
+            timezone: platformPost.publishing?.timezone,
+          }),
+        ),
+      ),
+    );
+
+    await platformPostRepository.update(platformPostId, {
+      publishing: {
+        ...platformPost.publishing,
+        reminderSentAt: new Date(),
+      },
+    });
+  },
+
+  processDueScheduledPost: async (platformPostId: string): Promise<'published' | 'overdue' | 'skipped'> => {
+    const platformPost = await platformPostRepository.findById(platformPostId);
+    if (!platformPost) return 'skipped';
+    if (platformPost.publishing?.status !== PublishingStatus.SCHEDULED) return 'skipped';
+
+    const post = await postRepository.findById(platformPost.postId);
+    if (!post) return 'skipped';
+
+    const workspace = await workspaceRepository.findById(post.workspaceId);
+    if (!workspace) return 'skipped';
+
+    if (!workspace.settings?.autoPublishEnabled) {
+      await platformPostRepository.update(platformPostId, {
+        publishing: {
+          ...platformPost.publishing,
+          status: PublishingStatus.OVERDUE,
+        },
+      });
+      return 'overdue';
+    }
+
+    await platformPostService.publishNow(platformPostId);
+    return 'published';
   },
 
   /** Only ADMIN can delete a per-platform post. */

@@ -131,7 +131,7 @@ export const CreatePlatformPostSchema = z.object({
       thumbnailUrl: z.string().optional(),
     }),
   ).optional(),
-  status:       z.enum(['draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled']).optional(),
+  status:       z.enum(['draft', 'scheduled', 'publishing', 'published', 'overdue', 'failed', 'cancelled']).optional(),
   scheduledAt:  z.string().optional(),
   timezone:     z.string().optional(),
 });
@@ -150,7 +150,7 @@ export const UpdatePlatformPostSchema = z
       }),
     ).optional()),
     scheduledAt: nullToUndefined(z.string().optional()),
-    status:      nullToUndefined(z.enum(['draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled']).optional()),
+    status:      nullToUndefined(z.enum(['draft', 'scheduled', 'publishing', 'published', 'overdue', 'failed', 'cancelled']).optional()),
   })
   .refine(data => Object.keys(data).length > 1, { message: 'No fields provided to update' });
 

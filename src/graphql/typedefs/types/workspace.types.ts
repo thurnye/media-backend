@@ -5,6 +5,7 @@ export const workspaceTypes = gql`
     userId: ID
     role: String
     joinedAt: String
+    email: String
     firstName: String
     lastName: String
     avatarUrl: String

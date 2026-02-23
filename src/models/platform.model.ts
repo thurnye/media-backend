@@ -48,6 +48,7 @@ const PlatformPostSchema = new Schema<IPlatformPost>(
       },
       scheduledAt: { type: Date, index: true },
       publishedAt: Date,
+      reminderSentAt: Date,
       timezone: String,
       platformPostId: String,
     },

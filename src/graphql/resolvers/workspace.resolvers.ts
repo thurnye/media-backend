@@ -31,6 +31,7 @@ export const workspaceResolvers = {
           userId:    m.userId,
           role:      m.role,
           joinedAt,
+          email:     user?.email ?? null,
           firstName: user?.firstName ?? null,
           lastName:  user?.lastName ?? null,
           avatarUrl: user?.avatarUrl ?? null,

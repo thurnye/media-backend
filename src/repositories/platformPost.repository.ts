@@ -76,6 +76,17 @@ const platformPostRepository = {
       'publishing.scheduledAt': { $lte: before },
     }),
 
+  findScheduledForReminder: (from: Date, to: Date): Promise<IPlatformPost[]> =>
+    PlatformPost.find({
+      isActive: true,
+      'publishing.status': 'scheduled',
+      'publishing.scheduledAt': { $gt: from, $lte: to },
+      $or: [
+        { 'publishing.reminderSentAt': { $exists: false } },
+        { 'publishing.reminderSentAt': null },
+      ],
+    }),
+
   softDelete: (id: string): Promise<IPlatformPost | null> =>
     PlatformPost.findByIdAndUpdate(
       id,

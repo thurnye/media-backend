@@ -25,6 +25,7 @@ export interface IPublishingInfo {
   status: PublishingStatus;
   scheduledAt?: Date;
   publishedAt?: Date;
+  reminderSentAt?: Date;
   timezone?: string;
   platformPostId?: string;
 }

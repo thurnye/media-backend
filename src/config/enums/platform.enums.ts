@@ -13,6 +13,7 @@ export enum PublishingStatus {
   SCHEDULED = "scheduled",
   PUBLISHING = "publishing",
   PUBLISHED = "published",
+  OVERDUE = "overdue",
   FAILED = "failed",
   CANCELLED = "cancelled",
 }

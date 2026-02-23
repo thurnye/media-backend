@@ -86,6 +86,11 @@ const resolveFinalReviewStatus = (
   return PostStatus.PENDING_APPROVAL;
 };
 
+const isReviewDrivenStatus = (status?: PostStatus): boolean =>
+  status === PostStatus.DRAFT ||
+  status === PostStatus.PENDING_APPROVAL ||
+  status === PostStatus.REJECTED;
+
 const postService = {
   /** Any workspace member can list posts. */
   getPosts: async (
@@ -102,6 +107,26 @@ const postService = {
     if (!post) throw new AppError('NOT_FOUND', POST.POST_NOT_FOUND);
 
     await requireMembership(post.workspaceId, userId);
+
+    const workspace = await workspaceRepository.findById(post.workspaceId);
+    const approvalRequired = !!workspace?.settings?.approvalRequired;
+
+    // Workspace-level rule: when approval is disabled, review-stage posts are auto-approved.
+    if (!approvalRequired && isReviewDrivenStatus(post.status as PostStatus)) {
+      const normalized = await postRepository.update(id, {
+        status: PostStatus.APPROVED,
+        approvalWorkflow: {
+          ...(post.approvalWorkflow as any),
+          requiredApprovers: [],
+          approvedBy: [],
+          rejectedBy: [],
+          cancelledBy: [],
+          archivedBy: [],
+        } as any,
+      });
+      return normalized ?? post;
+    }
+
     return post;
   },
 
@@ -189,8 +214,14 @@ const postService = {
     if (error) throw new AppError('VALIDATION_ERROR', error);
 
     await requirePermission(data.workspaceId, userId, Permission.CREATE_POST);
+    const workspace = await workspaceRepository.findById(data.workspaceId);
+    const approvalRequired = !!workspace?.settings?.approvalRequired;
 
-    return postRepository.create({ ...data, createdBy: userId });
+    return postRepository.create({
+      ...data,
+      createdBy: userId,
+      status: approvalRequired ? PostStatus.DRAFT : PostStatus.APPROVED,
+    } as any);
   },
 
   /**
@@ -227,13 +258,13 @@ const postService = {
 
     const { requiredApprovers, ...rest } = data;
     const payload: IUpdatePostData = { ...rest };
-    let workspace = null;
+    let workspace = await workspaceRepository.findById(post.workspaceId);
+    const approvalRequired = !!workspace?.settings?.approvalRequired;
     const previousReviewerIds = getReviewerIdsFromPost(post);
     let newlyAddedReviewerIds: string[] = [];
     let nextRequiredApproverIds: string[] | null = null;
 
     if (requiredApprovers !== undefined) {
-      workspace = await workspaceRepository.findById(post.workspaceId);
       const members = workspace?.members ?? [];
       const roleByUserId = new Map(members.map((member) => [member.userId, member.role]));
       const uniqueApproverIds = Array.from(new Set(requiredApprovers.filter(Boolean)));
@@ -246,17 +277,19 @@ const postService = {
 
       payload.approvalWorkflow = {
         ...(post.approvalWorkflow as any),
-        requiredApprovers: uniqueApproverIds.map((reviewerId) => ({
+        requiredApprovers: (approvalRequired ? uniqueApproverIds : []).map((reviewerId) => ({
           userId: reviewerId,
           role: roleByUserId.get(reviewerId) ?? WorkspaceRole.MEMBER,
         })),
       } as any;
 
-      newlyAddedReviewerIds = uniqueApproverIds.filter((id) => !previousReviewerIds.includes(id));
+      newlyAddedReviewerIds = approvalRequired
+        ? uniqueApproverIds.filter((id) => !previousReviewerIds.includes(id))
+        : [];
 
       // If no reviewers remain, reset the workflow and send the post back to draft.
       if (uniqueApproverIds.length === 0) {
-        payload.status = PostStatus.DRAFT;
+        payload.status = approvalRequired ? PostStatus.DRAFT : PostStatus.APPROVED;
         payload.approvalWorkflow = {
           ...(payload.approvalWorkflow as any),
           approvedBy: [],
@@ -267,14 +300,31 @@ const postService = {
       }
     }
 
-    // Auto-submit for approval once at least one required reviewer is assigned.
+    // Auto-submit for approval once at least one required reviewer is assigned,
+    // but only when workspace approval workflow is enabled.
     if (
+      approvalRequired &&
       post.status === PostStatus.DRAFT &&
       !payload.status &&
       nextRequiredApproverIds !== null &&
       nextRequiredApproverIds.length > 0
     ) {
       payload.status = PostStatus.PENDING_APPROVAL;
+    }
+
+    // Workspace-level override: no reviewer workflow means review statuses are not applicable.
+    if (!approvalRequired) {
+      if (isReviewDrivenStatus((payload.status ?? post.status) as PostStatus)) {
+        payload.status = PostStatus.APPROVED;
+      }
+      payload.approvalWorkflow = {
+        ...(payload.approvalWorkflow ?? post.approvalWorkflow ?? ({} as any)),
+        requiredApprovers: [],
+        approvedBy: [],
+        rejectedBy: [],
+        cancelledBy: [],
+        archivedBy: [],
+      } as any;
     }
 
     // Enforce status transitions when status is being changed
@@ -440,6 +490,25 @@ const postService = {
     if (!post) throw new AppError('NOT_FOUND', POST.POST_NOT_FOUND);
 
     await requirePermission(post.workspaceId, userId, Permission.CREATE_POST);
+
+    const workspace = await workspaceRepository.findById(post.workspaceId);
+    const approvalRequired = !!workspace?.settings?.approvalRequired;
+
+    if (!approvalRequired) {
+      validateTransition(post.status as PostStatus, PostStatus.APPROVED);
+      const autoApproved = await postRepository.update(postId, {
+        status: PostStatus.APPROVED,
+        approvalWorkflow: {
+          ...post.approvalWorkflow,
+          requiredApprovers: [],
+          approvedBy: [],
+          rejectedBy: [],
+          cancelledBy: [],
+          archivedBy: [],
+        },
+      } as any);
+      return autoApproved!;
+    }
 
     validateTransition(post.status as PostStatus, PostStatus.PENDING_APPROVAL);
 

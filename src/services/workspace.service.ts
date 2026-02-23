@@ -1,5 +1,6 @@
 import workspaceRepository from '../repositories/workspace.repository';
 import userRepository from '../repositories/user.repository';
+import postRepository from '../repositories/post.repository';
 import { IWorkspace, ICreateWorkspaceData, IUpdateWorkspaceData } from '../interfaces/workspace.interface';
 import { WorkspaceRole } from '../config/enums/workspace.enums';
 import { Permission } from '../config/enums/permission.enums';
@@ -53,6 +54,13 @@ const workspaceService = {
     await requirePermission(id, userId, Permission.MANAGE_WORKSPACE);
 
     const updated = await workspaceRepository.update(id, data);
+
+    // When approval workflow is disabled at workspace level, existing posts
+    // should no longer remain in review states.
+    if (data.settings?.approvalRequired === false) {
+      await postRepository.autoApproveReviewFlowPosts(id);
+    }
+
     return updated!;
   },
 

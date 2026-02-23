@@ -109,6 +109,28 @@ class PostRepository {
     );
   }
 
+  async autoApproveReviewFlowPosts(workspaceId: string): Promise<void> {
+    await Post.updateMany(
+      {
+        workspaceId,
+        deletedAt: null,
+        isActive: true,
+        status: { $in: ['draft', 'pending_approval', 'rejected'] },
+      },
+      {
+        $set: {
+          status: 'approved',
+          'approvalWorkflow.requiredApprovers': [],
+          'approvalWorkflow.approvedBy': [],
+          'approvalWorkflow.rejectedBy': [],
+          'approvalWorkflow.cancelledBy': [],
+          'approvalWorkflow.archivedBy': [],
+          'approvalWorkflow.comments': [],
+        },
+      },
+    );
+  }
+
   findEvergreenReady(before: Date): Promise<IPost[]> {
     return Post.find({
       isActive: true,

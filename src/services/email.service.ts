@@ -203,6 +203,40 @@ const emailService = {
       `,
     });
   },
+
+  sendPlatformPublishReminder: async (
+    to: string,
+    params: {
+      postTitle: string;
+      platform: string;
+      workspaceId: string;
+      postId: string;
+      scheduledAt: Date;
+      timezone?: string;
+    },
+  ): Promise<void> => {
+    const postUrl = `${CLIENT_URL}/dashboard/workspace/${params.workspaceId}/post/${params.postId}`;
+    await transporter.sendMail({
+      from: FROM,
+      to,
+      subject: `Scheduled publish reminder: "${params.postTitle}" on ${params.platform}`,
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+          <h2 style="color: #1a1a2e; margin: 0 0 16px;">Scheduled Publish Reminder</h2>
+          <p style="color: #344054; font-size: 15px; line-height: 1.6; margin: 0 0 12px;">
+            Your platform post for <strong>"${params.postTitle}"</strong> on <strong>${params.platform}</strong> is due in about 30 minutes.
+          </p>
+          <p style="color:#475467; margin:0 0 20px;">
+            Scheduled time: <strong>${params.scheduledAt.toISOString()}</strong>
+            ${params.timezone ? ` (${params.timezone})` : ''}
+          </p>
+          <a href="${postUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">
+            Open Post
+          </a>
+        </div>
+      `,
+    });
+  },
 };
 
 export default emailService;
