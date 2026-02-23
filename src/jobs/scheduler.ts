@@ -9,8 +9,8 @@ import { logger } from '../config/logger';
  * Call once after DB connection is established.
  */
 export function initScheduler(): void {
-  // Every minute: publish platform posts whose scheduledAt has arrived
-  cron.schedule('* * * * *', () => {
+  // Every hour at 00, 15, 30, 45 minutes: publish platform posts whose scheduledAt has arrived
+  cron.schedule('0,15,30,45 * * * *', () => {
     runPublishScheduledJob().catch(err =>
       logger.error({ err }, 'publishScheduled cron error'),
     );
