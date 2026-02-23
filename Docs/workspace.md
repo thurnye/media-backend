@@ -1,263 +1,244 @@
-A Workspace in your system is the top-level container for:
-
-Users
-
-Roles
-
-Connected social accounts
-
-Posts
-
-Analytics
-
-Billing
-
-Settings
-
-Think of it as a company/team environment.
-
-🏢 What You Can Do Inside a Workspace
-
-I’ll break this into functional modules.
-
-1️⃣ Workspace Management
-Core Actions
-
-Create workspace
-
-Update workspace name/logo
-
-Set timezone
-
-Set default language
-
-Delete workspace (Admin only)
-
-Archive workspace
-
-Settings
-
-Approval workflow toggle
-
-Default post category
-
-Auto-publishing rules
-
-Evergreen rotation rules
-
-Branding settings (white-label if enterprise)
-
-2️⃣ User & Role Management
-
-Inside a workspace, you can:
-
-Invite users via email
-
-Remove users
-
-Assign roles (Admin / Manager / Member)
-
-View activity logs
-
-Set role-based permissions
-
-Transfer ownership
-
-Advanced:
-
-Custom roles
-
-Role-based post approval chain
-
-3️⃣ Social Platform Management
-
-Each workspace manages its own connected accounts.
-
-Connect Instagram
-
-Connect Facebook
-
-Connect LinkedIn
-
-Connect TikTok
-
-Disconnect accounts
-
-Refresh tokens
-
-Assign account access to certain roles
-
-Advanced:
-
-Set default posting accounts
-
-Assign account managers per platform
-
-4️⃣ Post Management
-
-Within workspace:
-
-Create post (draft)
-
-Edit post
-
-Add media
-
-Categorize post
-
-Tag campaign
-
-Set evergreen flag
-
-Schedule post
-
-Submit for approval
-
-Approve post
-
-Publish post
-
-Duplicate post
-
-Archive post
-
-Advanced:
-
-Bulk scheduling
-
-Bulk category editing
-
-Cross-platform content override
-
-Post version history
-
-5️⃣ Content Calendar
-
-Workspace-level calendar:
-
-View by month/week/day
-
-Filter by platform
-
-Filter by category
-
-Filter by campaign
-
-Drag-and-drop rescheduling
-
-Identify schedule gaps
-
-Auto-fill with evergreen posts
-
-6️⃣ Analytics & Reporting
-
-Workspace analytics includes:
-
-Engagement rate
-
-Platform performance comparison
-
-Post category performance
-
-Campaign ROI tracking
-
-Top-performing evergreen posts
-
-Export reports (CSV / PDF)
-
-AI performance insights
-
-Advanced:
-
-Cross-workspace analytics (agency feature)
-
-7️⃣ Approval Workflow (Enterprise)
-
-If enabled:
-
-Require approval before publish
-
-Multi-level approval chain
-
-Comment on posts internally
-
-Reject with feedback
-
-Audit trail
-
-8️⃣ Automation & Smart Features
-
-Advanced workspace features:
-
-Auto-repost evergreen posts
-
-Smart posting time suggestions
-
-AI caption suggestions
-
-Auto hashtag generator
-
-Content performance scoring
-
-Engagement heatmap
-
-9️⃣ Billing & Subscription (Owner/Admin Only)
-
-View subscription plan
-
-Upgrade/downgrade
-
-View usage limits
-
-Add payment method
-
-View invoices
-
-🔟 Security
-
-2FA enforcement
-
-IP restrictions (enterprise)
-
-Activity logs
-
-Token audit
-
-API key management
-
-🧠 Conceptually
-
-Workspace = Tenant Boundary
-
-Everything must be scoped by:
-
-workspaceId: string;
-
-Every query should include:
-
-WHERE workspace_id = currentUser.workspaceId
-🔥 If You Want to Be Advanced
-
-You can define Workspace as:
-
-export interface Workspace {
-  id: string;
-  name: string;
-  slug: string;
-
-  ownerId: string;
-
-  timezone: string;
-  defaultPostCategory?: PostCategory;
-
-  settings: {
-    approvalRequired: boolean;
-    evergreenEnabled: boolean;
-    autoPublishEnabled: boolean;
-  };
-
-  plan: "free" | "pro" | "enterprise";
-
-  createdAt: Date;
-  updatedAt: Date;
+# Workspace Documentation
+## Workspace Domain, Membership, and Invitation Flows
+
+---
+
+## Table of Contents
+1. [Overview](#1-overview)
+2. [Workspace Data Model](#2-workspace-data-model)
+3. [Workspace Lifecycle](#3-workspace-lifecycle)
+4. [Membership Lifecycle](#4-membership-lifecycle)
+5. [Invitation Lifecycle](#5-invitation-lifecycle)
+6. [Workspace Settings and Plan](#6-workspace-settings-and-plan)
+7. [Access Control in Workspace Context](#7-access-control-in-workspace-context)
+8. [Workspace API Surface](#8-workspace-api-surface)
+9. [Frontend Workspace Flow](#9-frontend-workspace-flow)
+10. [Operational Notes](#10-operational-notes)
+
+---
+
+## 1. Overview
+The workspace domain is the tenancy boundary of the application.
+
+A workspace defines:
+- ownership
+- member list and roles
+- settings for approval/evergreen/publishing policies
+- access scope for posts, platform accounts, and review workflows
+
+Core implementation files:
+- `src/models/workspace.model.ts`
+- `src/services/workspace.service.ts`
+- `src/services/workspaceInvitation.service.ts`
+- `src/repositories/workspace.repository.ts`
+
+---
+
+## 2. Workspace Data Model
+
+### 2.1 Key fields
+| Field | Type | Notes |
+|---|---|---|
+| `name` | string | Workspace display name |
+| `slug` | string | Unique slug (indexed, unique) |
+| `description` | string | Optional description |
+| `ownerId` | string | Workspace owner principal |
+| `members[]` | array | Member entries with role + joinedAt |
+| `settings` | object | approval, evergreen, auto-publish toggles |
+| `plan` | enum | `free`, `pro`, `enterprise` |
+| `defaultTimezone` | string | Default scheduler/display timezone |
+| `isActive` | boolean | Soft-delete flag |
+| `deletedAt` | date/null | Soft-delete timestamp |
+
+### 2.2 Member record
+```text
+members[]
+└─ {
+   userId: string,
+   role: admin|manager|member,
+   joinedAt: Date
 }
+```
+
+### 2.3 Important indexes
+- `slug` unique index
+- `ownerId` index
+- `members.userId` index
+
+---
+
+## 3. Workspace Lifecycle
+
+### 3.1 Create
+- Any authenticated user can create workspace.
+- Creator becomes:
+  - `ownerId`
+  - member with `admin` role
+- User document is synchronized with new workspace reference.
+
+### 3.2 Read
+- Any owner/member can read workspace (`requireMembership`).
+
+### 3.3 Update
+- Requires `manage_workspace` permission (owner/admin/manager).
+
+### 3.4 Delete
+- Soft delete only (`isActive=false`, `deletedAt` set).
+- Requires `delete_workspace` (owner/admin).
+
+### 3.5 Lifecycle tree
+```text
+Create -> Active
+          ├─ Update settings/metadata
+          ├─ Manage members/invitations
+          └─ Soft delete -> Inactive
+```
+
+---
+
+## 4. Membership Lifecycle
+
+### 4.1 Add member
+- Requires `manage_users` (owner/admin).
+- Validates target is not already member.
+- Adds member record with role and `joinedAt`.
+
+### 4.2 Remove member
+- Requires `manage_users`.
+- Owner cannot be removed.
+- Validates member exists before removal.
+
+### 4.3 Update member role
+- Requires `manage_users`.
+- Owner role cannot be changed.
+- Validates member exists.
+
+### 4.4 Suggest members
+- Caller must be workspace member.
+- Suggestion source: users from caller’s other workspaces, excluding current members and caller.
+- Query matched against email/first/last name.
+
+### 4.5 Membership operations table
+| Operation | Guard | Allowed principals |
+|---|---|---|
+| Add member | `manage_users` | owner/admin |
+| Remove member | `manage_users` | owner/admin |
+| Update role | `manage_users` | owner/admin |
+| Suggest members | membership | owner/admin/manager/member |
+
+---
+
+## 5. Invitation Lifecycle
+
+### 5.1 Invite
+- Requires `manage_users`.
+- Validations:
+  - workspace exists
+  - target email is not already active member
+  - no existing pending invite for same workspace+email
+- Creates invitation token with expiry (7 days).
+- Sends invite email with accept link.
+
+### 5.2 Accept invitation
+- Token must exist and be pending + unexpired.
+- If user not already member:
+  - add member to workspace
+  - sync user workspace reference
+- invitation marked as `accepted`.
+
+### 5.3 Revoke invitation
+- Requires `manage_users`.
+- Deletes pending invitation by workspace+email.
+
+### 5.4 Invitation state flow
+```text
+pending
+  ├─ accept -> accepted
+  ├─ revoke -> removed
+  └─ expire -> invalid for acceptance
+```
+
+---
+
+## 6. Workspace Settings and Plan
+
+### 6.1 Settings object
+| Setting | Type | Default | Purpose |
+|---|---|---|---|
+| `approvalRequired` | boolean | false | Approval policy toggle |
+| `evergreenEnabled` | boolean | false | Evergreen automation toggle |
+| `autoPublishEnabled` | boolean | false | Auto-publish policy toggle |
+
+### 6.2 Plan and timezone
+| Field | Default | Notes |
+|---|---|---|
+| `plan` | `free` | Billing/feature tier marker |
+| `defaultTimezone` | `America/New_York` | Scheduling fallback/time semantics |
+
+---
+
+## 7. Access Control in Workspace Context
+
+### 7.1 Workspace owner override
+Owner bypasses role matrix checks (`requirePermission` owner path).
+
+### 7.2 Role summary (effective)
+| Capability | Owner | Admin | Manager | Member |
+|---|---:|---:|---:|---:|
+| Manage workspace settings | ✅ | ✅ | ✅ | ❌ |
+| Delete workspace | ✅ | ✅ | ❌ | ❌ |
+| Manage users/invitations | ✅ | ✅ | ❌ | ❌ |
+| Read workspace resources | ✅ | ✅ | ✅ | ✅ |
+
+---
+
+## 8. Workspace API Surface
+
+### 8.1 GraphQL Queries
+- `workspaces`
+- `workspace(id)`
+- `suggestMembers(workspaceId, query)`
+- `workspaceInvitations(workspaceId)`
+
+### 8.2 GraphQL Mutations
+- `createWorkspace`
+- `updateWorkspace`
+- `deleteWorkspace`
+- `addWorkspaceMember`
+- `removeWorkspaceMember`
+- `updateMemberRole`
+- `inviteToWorkspace`
+- `acceptInvitation`
+- `revokeInvitation`
+
+---
+
+## 9. Frontend Workspace Flow
+
+### 9.1 Route map
+Under dashboard workspace routes:
+- workspace home
+- posts
+- members
+- analytics
+- settings
+
+### 9.2 State slices
+Workspace-related state handled in NgRx:
+- `workspace` slice for workspace detail/list/member/invitation operations
+- auth effects hydrate initial workspaces from user payload on login/session restore
+
+### 9.3 Invitation UX
+- Invite sent from members UI
+- Invite acceptance handled via `/invite/accept?token=...`
+- On acceptance success, user is navigated to target workspace
+
+---
+
+## 10. Operational Notes
+
+1. Workspace soft-delete keeps records for audit continuity.
+2. Membership checks are mandatory for read operations to prevent cross-workspace leakage.
+3. Invitations are token-based and time-bound.
+4. User and workspace membership references are synchronized in both directions during create/accept flows.
+5. Frontend role-based visibility should be treated as convenience only; backend checks are authoritative.

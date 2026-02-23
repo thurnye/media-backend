@@ -97,6 +97,10 @@ class PostRepository {
     return Post.findOne({ _id: id, deletedAt: null });
   }
 
+  countByWorkspace(workspaceId: string): Promise<number> {
+    return Post.countDocuments({ workspaceId, deletedAt: null, isActive: true });
+  }
+
   update(id: string, data: IUpdatePostData): Promise<IPost | null> {
     return Post.findOneAndUpdate(
       { _id: id, deletedAt: null },

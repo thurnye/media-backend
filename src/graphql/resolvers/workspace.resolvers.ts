@@ -4,10 +4,18 @@ import { IWorkspace, WorkspacePlan } from '../../interfaces/workspace.interface'
 import workspaceService from '../../services/workspace.service';
 import workspaceInvitationService from '../../services/workspaceInvitation.service';
 import userRepository from '../../repositories/user.repository';
+import postRepository from '../../repositories/post.repository';
 import { requireAuth } from '../middleware/auth.middleware';
 
 export const workspaceResolvers = {
   Workspace: {
+    postCount: async (parent: IWorkspace) => {
+      const workspaceId =
+        (parent as any)?._id?.toString?.() ??
+        (parent as any)?.id;
+      if (!workspaceId) return 0;
+      return postRepository.countByWorkspace(workspaceId);
+    },
     members: async (parent: IWorkspace) => {
       const raw = parent.members ?? [];
       if (raw.length === 0) return [];

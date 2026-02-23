@@ -46,6 +46,7 @@ export const workspaceTypes = gql`
     slug: String
     description: String
     ownerId: ID
+    postCount: Int
     members: [WorkspaceMember]
     settings: WorkspaceSettings
     plan: String
