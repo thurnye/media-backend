@@ -45,6 +45,14 @@ export const platformResolvers = {
       const userId = await requireAuth(ctx);
       return platformPostService.getPlatformPostsByWorkspaceDay(workspaceId, date, userId);
     },
+    workspacePlatformPostsByMonth: async (
+      _: unknown,
+      { workspaceId, month }: { workspaceId: string; month: string },
+      ctx: IContext,
+    ) => {
+      const userId = await requireAuth(ctx);
+      return platformPostService.getPlatformPostsByWorkspaceMonth(workspaceId, month, userId);
+    },
     platformPost: async (_: unknown, { id }: { id: string }, ctx: IContext) => {
       const userId = await requireAuth(ctx);
       return platformPostService.getPlatformPost(id, userId);

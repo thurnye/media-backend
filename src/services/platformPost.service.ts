@@ -1,5 +1,6 @@
 import platformPostRepository from '../repositories/platformPost.repository';
 import postRepository from '../repositories/post.repository';
+import workspaceRepository from '../repositories/workspace.repository';
 import { IPlatformPost, ICreatePlatformPostData, IUpdatePlatformPostData } from '../interfaces/platform.interface';
 import { PlatformType, PublishingStatus, ContentType } from '../config/enums/platform.enums';
 import { Permission } from '../config/enums/permission.enums';
@@ -84,6 +85,76 @@ type NullableUpdatePlatformPostInput = {
 const nullToUndefined = <T>(value: T | null | undefined): T | undefined =>
   value === null ? undefined : value;
 
+const toDateObject = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (/^\d{13}$/.test(trimmed)) {
+      const parsed = new Date(Number(trimmed));
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
+};
+
+const normalizePlatformPostDates = (platformPost: IPlatformPost): IPlatformPost => {
+  if (!platformPost.publishing) return platformPost;
+  const scheduledAt = toDateObject(platformPost.publishing.scheduledAt as unknown);
+  const publishedAt = toDateObject(platformPost.publishing.publishedAt as unknown);
+  if (scheduledAt) {
+    (platformPost.publishing as any).scheduledAt = scheduledAt;
+  }
+  if (publishedAt) {
+    (platformPost.publishing as any).publishedAt = publishedAt;
+  }
+  return platformPost;
+};
+
+const isValidTimeZone = (timeZone?: string): boolean => {
+  if (!timeZone) return false;
+  try {
+    Intl.DateTimeFormat('en-US', { timeZone }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const dateOnlyInTimeZone = (value: unknown, timeZone: string): string | null => {
+  if (!value) return null;
+
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = toDateObject(value);
+  if (!parsed || Number.isNaN(parsed.getTime())) return null;
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(parsed);
+
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  if (!year || !month || !day) return null;
+
+  return `${year}-${month}-${day}`;
+};
+
 function sanitizeUpdateInput(input: NullableUpdatePlatformPostInput): IUpdatePlatformPostInput {
   const sanitizedMedia = nullToUndefined(input.media)?.filter((item): item is NonNullable<typeof item> => item !== null)
     .flatMap((item) => {
@@ -137,13 +208,15 @@ const platformPostService = {
   getPlatformPostsByPost: async (postId: string, userId: string): Promise<IPlatformPost[]> => {
     const workspaceId = await getWorkspaceIdForPost(postId);
     await requireMembership(workspaceId, userId);
-    return platformPostRepository.findByPostId(postId);
+    const posts = await platformPostRepository.findByPostId(postId);
+    return posts.map(normalizePlatformPostDates);
   },
 
   /** Any workspace member can list all platform posts belonging to a workspace. */
   getPlatformPostsByWorkspace: async (workspaceId: string, userId: string): Promise<IPlatformPost[]> => {
     await requireMembership(workspaceId, userId);
-    return platformPostRepository.findByWorkspaceId(workspaceId);
+    const posts = await platformPostRepository.findByWorkspaceId(workspaceId);
+    return posts.map(normalizePlatformPostDates);
   },
 
   /** Any workspace member can list platform posts for a specific day.
@@ -159,35 +232,60 @@ const platformPostService = {
       throw new AppError('VALIDATION_ERROR', 'Invalid date format. Expected YYYY-MM-DD');
     }
 
+    const workspace = await workspaceRepository.findById(workspaceId);
+    const workspaceTimeZone = isValidTimeZone(workspace?.defaultTimezone)
+      ? workspace!.defaultTimezone!
+      : 'UTC';
+
     const platformPosts = await platformPostRepository.findByWorkspaceId(workspaceId);
 
-    const toDateOnly = (value: unknown): { utc: string; local: string } | null => {
-      if (!value) return null;
-      if (typeof value === 'string') {
-        // Fast-path for ISO-like strings that already include a date prefix.
-        const prefix = value.slice(0, 10);
-        if (/^\d{4}-\d{2}-\d{2}$/.test(prefix)) {
-          return { utc: prefix, local: prefix };
-        }
-      }
+    return platformPosts.map(normalizePlatformPostDates).filter((platformPost) => {
+      const effectiveTimeZone = isValidTimeZone(platformPost.publishing?.timezone)
+        ? platformPost.publishing!.timezone!
+        : workspaceTimeZone;
 
-      const parsed = value instanceof Date ? value : new Date(String(value));
-      if (Number.isNaN(parsed.getTime())) return null;
+      const published = dateOnlyInTimeZone(platformPost.publishing?.publishedAt, effectiveTimeZone);
+      const scheduled = dateOnlyInTimeZone(platformPost.publishing?.scheduledAt, effectiveTimeZone);
+      const effectiveDate = published ?? scheduled;
+      return effectiveDate === date;
+    });
+  },
 
-      const utc = parsed.toISOString().slice(0, 10);
-      const localYear = parsed.getFullYear();
-      const localMonth = `${parsed.getMonth() + 1}`.padStart(2, '0');
-      const localDay = `${parsed.getDate()}`.padStart(2, '0');
-      const local = `${localYear}-${localMonth}-${localDay}`;
-      return { utc, local };
-    };
+  /** Any workspace member can list platform posts for a specific month (YYYY-MM).
+   *  Matching rule: use publishedAt; if missing, use scheduledAt.
+   */
+  getPlatformPostsByWorkspaceMonth: async (
+    workspaceId: string,
+    month: string,
+    userId: string,
+  ): Promise<IPlatformPost[]> => {
+    await requireMembership(workspaceId, userId);
+    if (!/^\d{4}-\d{2}$/.test(month)) {
+      throw new AppError('VALIDATION_ERROR', 'Invalid month format. Expected YYYY-MM');
+    }
 
-    return platformPosts.filter((platformPost) => {
-      const published = toDateOnly(platformPost.publishing?.publishedAt);
-      const scheduled = toDateOnly(platformPost.publishing?.scheduledAt);
-      const effective = published ?? scheduled;
-      if (!effective) return false;
-      return effective.utc === date || effective.local === date;
+    const [, monthPart] = month.split('-');
+    const monthNumber = Number(monthPart);
+    if (!Number.isInteger(monthNumber) || monthNumber < 1 || monthNumber > 12) {
+      throw new AppError('VALIDATION_ERROR', 'Invalid month format. Expected YYYY-MM');
+    }
+
+    const workspace = await workspaceRepository.findById(workspaceId);
+    const workspaceTimeZone = isValidTimeZone(workspace?.defaultTimezone)
+      ? workspace!.defaultTimezone!
+      : 'UTC';
+
+    const platformPosts = await platformPostRepository.findByWorkspaceId(workspaceId);
+
+    return platformPosts.map(normalizePlatformPostDates).filter((platformPost) => {
+      const effectiveTimeZone = isValidTimeZone(platformPost.publishing?.timezone)
+        ? platformPost.publishing!.timezone!
+        : workspaceTimeZone;
+
+      const published = dateOnlyInTimeZone(platformPost.publishing?.publishedAt, effectiveTimeZone);
+      const scheduled = dateOnlyInTimeZone(platformPost.publishing?.scheduledAt, effectiveTimeZone);
+      const effectiveDate = published ?? scheduled;
+      return !!effectiveDate && effectiveDate.slice(0, 7) === month;
     });
   },
 
@@ -198,7 +296,7 @@ const platformPostService = {
 
     const workspaceId = await getWorkspaceIdForPost(platformPost.postId);
     await requireMembership(workspaceId, userId);
-    return platformPost;
+    return normalizePlatformPostDates(platformPost);
   },
 
   /** ADMIN and MANAGER can create per-platform posts (schedule/publish). */
@@ -225,7 +323,7 @@ const platformPostService = {
       },
       publishing: {
         status:      targetStatus,
-        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
+        scheduledAt: toDateObject(input.scheduledAt) ?? undefined,
         timezone:    input.timezone,
       },
       isActive: true,
@@ -269,7 +367,7 @@ const platformPostService = {
       data.publishing = {
         ...platformPost.publishing,
         ...(normalizedInput.status      !== undefined ? { status:      normalizedInput.status as PublishingStatus }  : {}),
-        ...(normalizedInput.scheduledAt !== undefined ? { scheduledAt: new Date(normalizedInput.scheduledAt) }        : {}),
+        ...(normalizedInput.scheduledAt !== undefined ? { scheduledAt: toDateObject(normalizedInput.scheduledAt) ?? undefined } : {}),
       };
     }
 
@@ -326,7 +424,7 @@ const platformPostService = {
         },
         publishing: {
           status:      input.scheduledAt ? PublishingStatus.SCHEDULED : PublishingStatus.PUBLISHING,
-          scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : undefined,
+          scheduledAt: toDateObject(input.scheduledAt) ?? undefined,
           timezone:    input.timezone,
         },
         isActive: true,

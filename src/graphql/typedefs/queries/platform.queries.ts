@@ -8,6 +8,7 @@ export const platformQueries = gql`
     platformPosts(postId: ID!): [PlatformPost]
     workspacePlatformPosts(workspaceId: ID!): [PlatformPost]
     workspacePlatformPostsByDay(workspaceId: ID!, date: String!): [PlatformPost]
+    workspacePlatformPostsByMonth(workspaceId: ID!, month: String!): [PlatformPost]
     platformPost(id: ID!): PlatformPost
   }
 `;
