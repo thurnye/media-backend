@@ -46,6 +46,19 @@ function formatError(formattedError: GraphQLFormattedError, error: unknown): Gra
 
 export async function createApp() {
   const app = express();
+  const allowedOrigins = Array.from(
+    new Set([process.env.CLIENT_URL, 'http://localhost:4200', 'http://localhost:4201'].filter(Boolean)),
+  ) as string[];
+  const corsOptions: cors.CorsOptions = {
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+  };
   const uploadsDir = path.join(__dirname, '../uploads');
   if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
@@ -83,14 +96,14 @@ export async function createApp() {
   app.use(cookieParser());
   app.use(
     '/oauth',
-    cors({ origin: process.env.CLIENT_URL || 'http://localhost:4200', credentials: true }),
+    cors(corsOptions),
     oauthRoutes,
   );
 
   // Media upload/delete REST routes
   app.use(
     '/api/media',
-    cors({ origin: process.env.CLIENT_URL || 'http://localhost:4200', credentials: true }),
+    cors(corsOptions),
     cookieParser(),
     authService.authMiddleware,
     mediaRoutes,
@@ -98,7 +111,7 @@ export async function createApp() {
 
   app.use(
     '/graphql',
-    cors({ origin: process.env.CLIENT_URL || 'http://localhost:4200', credentials: true }),
+    cors(corsOptions),
     cookieParser(),
     json(),
     authService.authMiddleware,          // decode cookie → req.userId, req.token

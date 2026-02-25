@@ -5,7 +5,7 @@ import userRepository from '../repositories/user.repository';
 import emailService from './email.service';
 import { WorkspaceRole } from '../config/enums/workspace.enums';
 import { Permission } from '../config/enums/permission.enums';
-import { requirePermission } from '../utils/rbac';
+import { requireMembership, requirePermission } from '../utils/rbac';
 import { AppError } from '../errors/AppError';
 import { GLOBAL_CONSTANTS } from '../config/constants/globalConstants';
 import { IWorkspaceInvitation } from '../interfaces/workspaceInvitation.interface';
@@ -22,10 +22,16 @@ const workspaceInvitationService = {
     role: WorkspaceRole,
     callerId: string,
   ): Promise<IWorkspaceInvitation> => {
-    await requirePermission(workspaceId, callerId, Permission.MANAGE_USERS);
+    // Any workspace member can invite.
+    await requireMembership(workspaceId, callerId);
 
     const workspace = await workspaceRepository.findById(workspaceId);
     if (!workspace) throw new AppError('NOT_FOUND', WORKSPACE.NOT_FOUND);
+
+    const callerIsOwner = workspace.ownerId === callerId;
+    const callerRole = workspace.members.find((member) => member.userId === callerId)?.role;
+    const callerCanAssignRoles = callerIsOwner || callerRole === WorkspaceRole.ADMIN;
+    const effectiveRole = callerCanAssignRoles ? role : WorkspaceRole.MEMBER;
 
     // Check if email already belongs to a member
     const existingUser = await userRepository.findByEmail(email);
@@ -47,7 +53,7 @@ const workspaceInvitationService = {
     const invitation = await workspaceInvitationRepository.create({
       workspaceId,
       email,
-      role,
+      role: effectiveRole,
       invitedBy: callerId,
       token,
       expiresAt,

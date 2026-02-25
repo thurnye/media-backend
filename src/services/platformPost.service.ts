@@ -340,12 +340,6 @@ const platformPostService = {
       );
     }
 
-    if ((post.priority ?? 'medium') !== 'high') {
-      throw new AppError(
-        'BAD_REQUEST',
-        'This workspace requires approval: post priority must be set to high before publishing.',
-      );
-    }
   },
 
   /** ADMIN and MANAGER can create per-platform posts (schedule/publish). */
