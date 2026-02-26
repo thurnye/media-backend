@@ -44,6 +44,5 @@ const PostReviewCommentSchema = new Schema<IPostReviewComment>(
 
 // Indexes
 PostReviewCommentSchema.index({ postId: 1, createdAt: 1 });
-PostReviewCommentSchema.index({ parentCommentId: 1 });
 
 export default mongoose.model('PostReviewComment', PostReviewCommentSchema);

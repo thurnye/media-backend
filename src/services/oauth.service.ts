@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const STATE_SECRET = process.env.OAUTH_STATE_SECRET || 'dev-oauth-state-secret';
+const STATE_SECRET = process.env.OAUTH_STATE_SECRET || '';
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:9000';
 
 export interface OAuthTokenResult {

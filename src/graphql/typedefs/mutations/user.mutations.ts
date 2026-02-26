@@ -29,5 +29,9 @@ export const userMutations = gql`
     deleteUser(id: ID!): User
 
     logout: Boolean
+
+    verifyEmail(token: String!): Boolean!
+    requestPasswordReset(email: String!): Boolean!
+    resetPassword(token: String!, newPassword: String!): Boolean!
   }
 `;

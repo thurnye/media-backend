@@ -28,12 +28,13 @@ const UserSchema = new Schema<IUser>(
     isActive: { type: Boolean, default: true },
     deletedAt: { type: Date, default: null },
     token: { type: String, default: null },
+    isEmailVerified: { type: Boolean, default: false },
+    emailVerificationTokenHash: { type: String, default: null },
+    emailVerificationExpiresAt: { type: Date, default: null },
+    passwordResetTokenHash: { type: String, default: null },
+    passwordResetExpiresAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
-
-// Indexes
-UserSchema.index({ email: 1 });
-UserSchema.index({ 'workspaces.workspaceId': 1 });
 
 export default mongoose.model('User', UserSchema);

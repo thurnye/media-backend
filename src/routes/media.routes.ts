@@ -7,6 +7,25 @@ import mediaService from '../services/media.service';
 
 const router = Router();
 const UPLOAD_DIR = path.join(__dirname, '../../uploads');
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'video/mp4',
+  'video/quicktime',
+  'video/webm',
+]);
+const ALLOWED_EXTENSIONS = new Set([
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.gif',
+  '.mp4',
+  '.mov',
+  '.webm',
+]);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -24,7 +43,17 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB hard cap
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const mimeAllowed = ALLOWED_MIME_TYPES.has(file.mimetype);
+    const extAllowed = ALLOWED_EXTENSIONS.has(ext);
+    if (!mimeAllowed || !extAllowed) {
+      cb(new Error('Unsupported file type'));
+      return;
+    }
+    cb(null, true);
+  },
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB per file
 });
 
 /**
@@ -56,7 +85,8 @@ router.post(
 
       return res.status(201).json({ media: results });
     } catch (err: any) {
-      const status = err.code === 'VALIDATION_ERROR' ? 400 : 500;
+      const status =
+        err.code === 'VALIDATION_ERROR' || err.message === 'Unsupported file type' ? 400 : 500;
       return res.status(status).json({ error: err.message || 'Upload failed' });
     }
   },

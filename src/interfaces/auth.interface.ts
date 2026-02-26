@@ -16,13 +16,14 @@ export interface ILoginInput {
 }
 
 export interface IAuthPayload {
-  token: string; // used internally to set the cookie — never returned to the client
+  token?: string; // used internally to set the cookie — never returned to the client
   user: {
     id: string;
     email: string;
     firstName: string;
     lastName: string;
     avatarUrl?: string;
+    isEmailVerified?: boolean;
   };
 }
 

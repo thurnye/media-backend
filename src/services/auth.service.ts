@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 
-const JWT_SECRET     = process.env.JWT_SECRET     || 'changeme-secret';
+const JWT_SECRET     = process.env.JWT_SECRET     || '';
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
 const IS_PROD        = process.env.NODE_ENV === 'production';
 

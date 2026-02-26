@@ -18,6 +18,7 @@ export const userTypes = gql`
     dateOfBirth: String
     workspaces:  [UserWorkspace]
     isActive:    Boolean
+    isEmailVerified: Boolean
     createdAt:   String
     updatedAt:   String
   }

@@ -2,6 +2,8 @@ import express from 'express';
 import pinoHttp from 'pino-http';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import fs from 'fs';
 import path from 'path';
 import { json } from 'body-parser';
@@ -18,6 +20,8 @@ import { initScheduler } from './jobs/scheduler';
 import { logger } from './config/logger';
 import { AppError } from './errors/AppError';
 import { GLOBAL_CONSTANTS } from './config/constants/globalConstants';
+import { assertSecureConfig } from './config/security';
+import { depthAndComplexityValidationRule } from './graphql/security/validationRules';
 
 /** Convert AppError (and plain Error) into a structured GraphQL error with an extension code. */
 function formatError(formattedError: GraphQLFormattedError, error: unknown): GraphQLFormattedError {
@@ -45,7 +49,10 @@ function formatError(formattedError: GraphQLFormattedError, error: unknown): Gra
 }
 
 export async function createApp() {
+  assertSecureConfig();
+
   const app = express();
+  const isProd = process.env.NODE_ENV === 'production';
   const allowedOrigins = Array.from(
     new Set([process.env.CLIENT_URL, 'http://localhost:4200', 'http://localhost:4201'].filter(Boolean)),
   ) as string[];
@@ -64,7 +71,12 @@ export async function createApp() {
     fs.mkdirSync(uploadsDir, { recursive: true });
   }
 
-  const server = new ApolloServer({ typeDefs, resolvers, formatError });
+  const server = new ApolloServer({
+    typeDefs,
+    resolvers,
+    formatError,
+    validationRules: [depthAndComplexityValidationRule],
+  });
   await server.start();
 
   // Structured HTTP logging with minimal, non-sensitive fields
@@ -88,6 +100,42 @@ export async function createApp() {
       },
     }),
   );
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
+
+  if (isProd) {
+    const globalLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 500,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many requests. Please try again later.' },
+    });
+    const graphqlLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 300,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many GraphQL requests. Please try again later.' },
+    });
+    const uploadLimiter = rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 80,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many upload requests. Please try again later.' },
+    });
+
+    app.use(globalLimiter);
+    app.use('/graphql', graphqlLimiter);
+    app.use('/api/media', uploadLimiter);
+    app.use('/oauth', uploadLimiter);
+  }
 
   // Serve uploaded media files statically
   app.use('/uploads', express.static(uploadsDir));

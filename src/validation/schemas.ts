@@ -9,13 +9,26 @@ export const CreateUserSchema = z.object({
   firstName:   z.string().min(1, { message: 'First name is required' }),
   lastName:    z.string().min(1, { message: 'Last name is required' }),
   email:       z.string().email(),
-  password:    z.string().min(6, { message: 'Password must be at least 6 characters' }),
+  password:    z.string().min(10, { message: 'Password must be at least 10 characters' }),
   dateOfBirth: z.string().min(1, { message: 'Date of birth is required' }),
 });
 
 export const LoginSchema = z.object({
   email:    z.string().email(),
   password: z.string().min(1, { message: 'Password is required' }),
+});
+
+export const VerifyEmailSchema = z.object({
+  token: z.string().min(1, { message: 'Verification token is required' }),
+});
+
+export const RequestPasswordResetSchema = z.object({
+  email: z.string().email({ message: 'A valid email is required' }),
+});
+
+export const ResetPasswordSchema = z.object({
+  token: z.string().min(1, { message: 'Reset token is required' }),
+  newPassword: z.string().min(10, { message: 'Password must be at least 10 characters' }),
 });
 
 export const UpdateUserSchema = z

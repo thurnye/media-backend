@@ -38,12 +38,15 @@ export const userResolvers = {
   Mutation: {
     createUser: async (_: unknown, args: ICreateUserInput, ctx: IContext) => {
       const { token, user } = await userService.createUser(args);
-      authService.setTokenCookie(ctx.res!, token);
+      if (token) authService.setTokenCookie(ctx.res!, token);
       return { user };
     },
 
     login: async (_: unknown, args: ILoginInput, ctx: IContext) => {
       const { token, user } = await userService.loginUser(args);
+      if (!token) {
+        throw new Error('Authentication token was not generated');
+      }
       authService.setTokenCookie(ctx.res!, token);
       return { user };
     },
@@ -63,5 +66,16 @@ export const userResolvers = {
       authService.clearTokenCookie(ctx.res!);
       return userService.logoutUser(userId);
     },
+
+    verifyEmail: async (_: unknown, { token }: { token: string }) =>
+      userService.verifyEmail(token),
+
+    requestPasswordReset: async (_: unknown, { email }: { email: string }) =>
+      userService.requestPasswordReset(email),
+
+    resetPassword: async (
+      _: unknown,
+      { token, newPassword }: { token: string; newPassword: string },
+    ) => userService.resetPassword(token, newPassword),
   },
 };

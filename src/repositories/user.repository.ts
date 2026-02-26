@@ -29,6 +29,12 @@ const userRepository = {
   saveToken: (id: string, token: string | null): Promise<IUser | null> =>
     User.findByIdAndUpdate(id, { $set: { token } }, { new: true }),
 
+  findByEmailVerificationHash: (hash: string): Promise<IUser | null> =>
+    User.findOne({ emailVerificationTokenHash: hash }),
+
+  findByPasswordResetHash: (hash: string): Promise<IUser | null> =>
+    User.findOne({ passwordResetTokenHash: hash }),
+
   addWorkspace: (
     userId: string,
     entry: { workspaceId: string; role: string; joinedAt: Date },

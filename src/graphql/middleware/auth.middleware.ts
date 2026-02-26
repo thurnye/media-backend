@@ -14,5 +14,8 @@ export async function requireAuth(context: IContext): Promise<string> {
   if (!user || user.token !== context.token) {
     throw new AppError('UNAUTHENTICATED', AUTH.UNAUTHORIZED);
   }
+  if (!user.isEmailVerified) {
+    throw new AppError('FORBIDDEN', 'Email not verified');
+  }
   return context.userId;
 }

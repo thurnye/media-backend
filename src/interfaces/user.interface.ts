@@ -35,6 +35,11 @@ export interface IUser {
   }[];
   
   token?: string;
+  isEmailVerified?: boolean;
+  emailVerificationTokenHash?: string | null;
+  emailVerificationExpiresAt?: Date | null;
+  passwordResetTokenHash?: string | null;
+  passwordResetExpiresAt?: Date | null;
 
   isActive?: boolean;
 
@@ -57,12 +62,23 @@ export interface ICreateUserData {
     workspaceId: string;
     role: WorkspaceRole;
   }[];
+  isEmailVerified?: boolean;
+  emailVerificationTokenHash?: string | null;
+  emailVerificationExpiresAt?: Date | null;
+  passwordResetTokenHash?: string | null;
+  passwordResetExpiresAt?: Date | null;
 }
 
 // For updating a user
 export interface IUpdateUserInput extends Partial<ICreateUserData> {
   isActive?: boolean;
   deletedAt?: Date | null;
+  token?: string | null;
+  isEmailVerified?: boolean;
+  emailVerificationTokenHash?: string | null;
+  emailVerificationExpiresAt?: Date | null;
+  passwordResetTokenHash?: string | null;
+  passwordResetExpiresAt?: Date | null;
 }
 
 export interface ICreateUserInput extends Omit<ICreateUserData, 'workspaces'> {}

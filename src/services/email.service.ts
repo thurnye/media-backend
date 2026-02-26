@@ -237,6 +237,58 @@ const emailService = {
       `,
     });
   },
+
+  sendEmailVerification: async (
+    to: string,
+    firstName: string | undefined,
+    verificationUrl: string,
+  ): Promise<void> => {
+    await transporter.sendMail({
+      from: FROM,
+      to,
+      subject: 'Verify your email',
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+          <h2 style="color: #1a1a2e; margin: 0 0 16px;">Verify Your Email</h2>
+          <p style="color: #344054; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+            Hi ${firstName || 'there'}, please verify your email address to activate your account.
+          </p>
+          <a href="${verificationUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">
+            Verify Email
+          </a>
+          <p style="color: #6c757d; font-size: 13px; margin: 24px 0 0;">
+            This link expires in 24 hours.
+          </p>
+        </div>
+      `,
+    });
+  },
+
+  sendPasswordReset: async (
+    to: string,
+    firstName: string | undefined,
+    resetUrl: string,
+  ): Promise<void> => {
+    await transporter.sendMail({
+      from: FROM,
+      to,
+      subject: 'Reset your password',
+      html: `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 40px 20px;">
+          <h2 style="color: #1a1a2e; margin: 0 0 16px;">Password Reset Request</h2>
+          <p style="color: #344054; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+            Hi ${firstName || 'there'}, use the link below to reset your password.
+          </p>
+          <a href="${resetUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:600;">
+            Reset Password
+          </a>
+          <p style="color: #6c757d; font-size: 13px; margin: 24px 0 0;">
+            This link expires in 1 hour.
+          </p>
+        </div>
+      `,
+    });
+  },
 };
 
 export default emailService;
