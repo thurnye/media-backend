@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer';
+import { logger } from '../config/logger';
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -12,6 +13,127 @@ const transporter = nodemailer.createTransport({
 
 const FROM = process.env.EMAIL_FROM || 'noreply@example.com';
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:4200';
+const EMAIL_RETRY_MAX_ATTEMPTS = Number(process.env.EMAIL_RETRY_MAX_ATTEMPTS ?? 5);
+const EMAIL_RETRY_BASE_DELAY_MS = Number(process.env.EMAIL_RETRY_BASE_DELAY_MS ?? 5000);
+const EMAIL_QUEUE_POLL_MS = Number(process.env.EMAIL_QUEUE_POLL_MS ?? 2000);
+
+type EmailJob = {
+  id: string;
+  attempts: number;
+  nextRunAt: number;
+  mail: nodemailer.SendMailOptions;
+};
+
+const emailQueue: EmailJob[] = [];
+let queueWorkerStarted = false;
+let isProcessingQueue = false;
+const processingJobIds = new Set<string>();
+
+const enqueueEmail = async (mail: nodemailer.SendMailOptions): Promise<void> => {
+  const job: EmailJob = {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    attempts: 0,
+    nextRunAt: Date.now(),
+    mail,
+  };
+  emailQueue.push(job);
+  console.log('[email][queued]', {
+    jobId: job.id,
+    to: mail.to,
+    subject: mail.subject,
+    queueSize: emailQueue.length,
+  });
+};
+
+const processEmailQueue = async (): Promise<void> => {
+  if (isProcessingQueue) return;
+  isProcessingQueue = true;
+  const now = Date.now();
+  try {
+    const due = emailQueue.filter((job) => job.nextRunAt <= now && !processingJobIds.has(job.id));
+    for (const job of due) {
+      const idx = emailQueue.findIndex((entry) => entry.id === job.id);
+      if (idx === -1) continue;
+      processingJobIds.add(job.id);
+
+      try {
+        console.log('[email][sending]', {
+          jobId: job.id,
+          attempt: job.attempts + 1,
+          to: job.mail.to,
+          subject: job.mail.subject,
+        });
+        await transporter.sendMail(job.mail);
+        console.log('[email][sent]', {
+          jobId: job.id,
+          to: job.mail.to,
+          subject: job.mail.subject,
+        });
+        emailQueue.splice(idx, 1);
+      } catch (error) {
+        job.attempts += 1;
+        console.error('[email][send-error]', {
+          jobId: job.id,
+          attempt: job.attempts,
+          to: job.mail.to,
+          subject: job.mail.subject,
+          error: error instanceof Error ? error.message : 'unknown',
+        });
+        if (job.attempts >= EMAIL_RETRY_MAX_ATTEMPTS) {
+          logger.error(
+            {
+              event: 'email_delivery_failed',
+              to: job.mail.to,
+              subject: job.mail.subject,
+              attempts: job.attempts,
+              error: error instanceof Error ? error.message : 'unknown',
+            },
+            'Dropping email after max retry attempts',
+          );
+          emailQueue.splice(idx, 1);
+        } else {
+          const delay = EMAIL_RETRY_BASE_DELAY_MS * 2 ** (job.attempts - 1);
+          job.nextRunAt = Date.now() + delay;
+          console.log('[email][retry-scheduled]', {
+            jobId: job.id,
+            nextAttemptInMs: delay,
+            nextRunAt: new Date(job.nextRunAt).toISOString(),
+          });
+        }
+      } finally {
+        processingJobIds.delete(job.id);
+      }
+    }
+  } finally {
+    isProcessingQueue = false;
+  }
+};
+
+const ensureQueueWorker = (): void => {
+  if (queueWorkerStarted) return;
+  queueWorkerStarted = true;
+  transporter.verify((error) => {
+    if (error) {
+      console.error('[email][smtp-verify-failed]', error.message);
+      logger.error({ event: 'smtp_verify_failed', error: error.message }, 'SMTP verify failed');
+      return;
+    }
+    console.log('[email][smtp-ready] SMTP connection verified');
+    logger.info({ event: 'smtp_ready' }, 'SMTP connection verified');
+  });
+  const interval = setInterval(() => {
+    processEmailQueue().catch((error) => {
+      console.error('[email][queue-worker-error]', error instanceof Error ? error.message : error);
+      logger.error(
+        { event: 'email_queue_worker_error', error: error instanceof Error ? error.message : 'unknown' },
+        'Email queue worker failed',
+      );
+    });
+  }, EMAIL_QUEUE_POLL_MS);
+  interval.unref();
+};
+
+ensureQueueWorker();
 
 const emailService = {
   sendWorkspaceInvitation: async (
@@ -20,7 +142,7 @@ const emailService = {
     workspaceName: string,
     acceptUrl: string,
   ): Promise<void> => {
-    await transporter.sendMail({
+    await enqueueEmail({
       from: FROM,
       to,
       subject: `You've been invited to join "${workspaceName}"`,
@@ -52,7 +174,7 @@ const emailService = {
     postId: string,
   ): Promise<void> => {
     const postUrl = `${CLIENT_URL}/dashboard/workspace/${workspaceId}/post/${postId}`;
-    await transporter.sendMail({
+    await enqueueEmail({
       from: FROM,
       to,
       subject: `You were added as a reviewer: "${postTitle}"`,
@@ -79,7 +201,7 @@ const emailService = {
     postId: string,
   ): Promise<void> => {
     const postUrl = `${CLIENT_URL}/dashboard/workspace/${workspaceId}/post/${postId}`;
-    await transporter.sendMail({
+    await enqueueEmail({
       from: FROM,
       to,
       subject: `Post review update: "${postTitle}"`,
@@ -106,7 +228,7 @@ const emailService = {
     postId: string,
   ): Promise<void> => {
     const postUrl = `${CLIENT_URL}/dashboard/workspace/${workspaceId}/post/${postId}`;
-    await transporter.sendMail({
+    await enqueueEmail({
       from: FROM,
       to,
       subject: `New comment on "${postTitle}"`,
@@ -136,7 +258,7 @@ const emailService = {
     postId: string,
   ): Promise<void> => {
     const postUrl = `${CLIENT_URL}/dashboard/workspace/${workspaceId}/post/${postId}`;
-    await transporter.sendMail({
+    await enqueueEmail({
       from: FROM,
       to,
       subject: `New reply on "${postTitle}"`,
@@ -179,7 +301,7 @@ const emailService = {
       ? `Your post <strong>"${params.postTitle}"</strong> was published successfully on <strong>${params.platform}</strong>.`
       : `Your post <strong>"${params.postTitle}"</strong> failed to publish on <strong>${params.platform}</strong>.`;
 
-    await transporter.sendMail({
+    await enqueueEmail({
       from: FROM,
       to,
       subject,
@@ -216,7 +338,7 @@ const emailService = {
     },
   ): Promise<void> => {
     const postUrl = `${CLIENT_URL}/dashboard/workspace/${params.workspaceId}/post/${params.postId}`;
-    await transporter.sendMail({
+    await enqueueEmail({
       from: FROM,
       to,
       subject: `Scheduled publish reminder: "${params.postTitle}" on ${params.platform}`,
@@ -243,7 +365,7 @@ const emailService = {
     firstName: string | undefined,
     verificationUrl: string,
   ): Promise<void> => {
-    await transporter.sendMail({
+    await enqueueEmail({
       from: FROM,
       to,
       subject: 'Verify your email',
@@ -269,7 +391,7 @@ const emailService = {
     firstName: string | undefined,
     resetUrl: string,
   ): Promise<void> => {
-    await transporter.sendMail({
+    await enqueueEmail({
       from: FROM,
       to,
       subject: 'Reset your password',

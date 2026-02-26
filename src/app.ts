@@ -22,6 +22,7 @@ import { AppError } from './errors/AppError';
 import { GLOBAL_CONSTANTS } from './config/constants/globalConstants';
 import { assertSecureConfig } from './config/security';
 import { depthAndComplexityValidationRule } from './graphql/security/validationRules';
+import { csrfProtection } from './middleware/csrf.middleware';
 
 /** Convert AppError (and plain Error) into a structured GraphQL error with an extension code. */
 function formatError(formattedError: GraphQLFormattedError, error: unknown): GraphQLFormattedError {
@@ -83,6 +84,11 @@ export async function createApp() {
   app.use(
     pinoHttp({
       logger,
+      customLogLevel: (_req, res, err) => {
+        if (err || res.statusCode >= 500) return 'error';
+        if (res.statusCode >= 400) return 'warn';
+        return 'info';
+      },
       serializers: {
         req: (req) => ({
           id: req.id,
@@ -154,6 +160,7 @@ export async function createApp() {
     cors(corsOptions),
     cookieParser(),
     authService.authMiddleware,
+    csrfProtection,
     mediaRoutes,
   );
 
@@ -163,6 +170,7 @@ export async function createApp() {
     cookieParser(),
     json(),
     authService.authMiddleware,          // decode cookie → req.userId, req.token
+    csrfProtection,
     expressMiddleware(server, {
       context: async ({ req, res }) => ({ userId: req.userId, token: req.token, res }),
     }),
